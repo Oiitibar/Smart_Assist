@@ -1,22 +1,38 @@
 const express = require("express");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const {
+  register,
+  login,
+  logout,
+  me,
+  updateProfile,
+
+  // old naming compatibility
   registerUser,
   loginUser,
   logoutUser,
   getMe,
-  updateProfile,
 } = require("../controllers/authController");
-
-const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.post("/logout", logoutUser);
+// This supports both middleware export styles:
+// module.exports = protect;
+// module.exports.protect = protect;
+const protect = authMiddleware.protect || authMiddleware;
 
-router.get("/me", protect, getMe);
+// Auth routes
+router.post("/register", register || registerUser);
+router.post("/login", login || loginUser);
+router.post("/logout", logout || logoutUser);
+
+// Current logged-in user
+router.get("/me", protect, me || getMe);
+
+// Optional old project compatibility route
+// New frontend should use /api/users/profile,
+// but keeping this will not hurt.
 router.put("/profile", protect, updateProfile);
 
 module.exports = router;

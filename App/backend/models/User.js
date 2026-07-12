@@ -3,11 +3,17 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
+    // Support both old project fullName and new backend name
+    name: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     fullName: {
       type: String,
-      required: [true, "Full name is required"],
       trim: true,
-      minlength: [2, "Full name must be at least 2 characters"],
+      default: "",
     },
 
     email: {
@@ -31,6 +37,11 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
+    avatarUrl: {
+      type: String,
+      default: "",
+    },
+
     profile: {
       phone: {
         type: String,
@@ -47,6 +58,33 @@ const userSchema = new mongoose.Schema(
       subjects: {
         type: [String],
         default: [],
+      },
+    },
+
+    preferences: {
+      theme: {
+        type: String,
+        default: "light",
+      },
+      notifications: {
+        type: Boolean,
+        default: true,
+      },
+      studyReminder: {
+        type: String,
+        default: "30 minutes before",
+      },
+      language: {
+        type: String,
+        default: "English",
+      },
+      timetableView: {
+        type: String,
+        default: "Week View",
+      },
+      flashcardMode: {
+        type: String,
+        default: "Review All",
       },
     },
 
@@ -74,19 +112,38 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Make sure at least name/fullName exists before validation
+userSchema.pre("validate", function (next) {
+  if (!this.name && this.fullName) {
+    this.name = this.fullName;
+  }
+
+  if (!this.fullName && this.name) {
+    this.fullName = this.name;
+  }
+
+  if (!this.name && !this.fullName) {
+    this.invalidate("name", "Name is required");
+  }
+
+  next();
+});
+
 // Hash password before saving
-userSchema.pre("save", async function () {
+userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
-    return;
+    return next();
   }
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+
+  next();
 });
 
 // Compare password during login
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
 // Remove password when sending user data to frontend
@@ -96,6 +153,4 @@ userSchema.methods.toJSON = function () {
   return user;
 };
 
-const User = mongoose.model("User", userSchema);
-
-module.exports = User;
+module.exports = mongoose.model("User", userSchema);

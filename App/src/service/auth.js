@@ -20,7 +20,15 @@ export const getCurrentUser = async () => {
   return res.data;
 };
 
+// Alias name, useful if some components call getMe()
+export const getMe = getCurrentUser;
+
 export const updateProfile = async (profileData) => {
-  const res = await api.put("/auth/profile", profileData);
+  const res = await api.put("/users/profile", profileData);
+  return res.data;
+};
+
+export const updatePreferences = async (preferences) => {
+  const res = await api.put("/users/preferences", preferences);
   return res.data;
 };

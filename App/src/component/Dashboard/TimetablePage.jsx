@@ -1,29 +1,125 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, Calendar, Clock, MapPin, Plus, Target, Brain } from "lucide-react";
 import {
-  ArrowRight,
-  Brain,
-  Calendar,
-  Clock,
-  MapPin,
-  Plus,
-  Target,
-} from "lucide-react";
+  createTimetableItem,
+  deleteTimetableItem,
+  getTimetable,
+  getTodayTimetable,
+} from "../../service/timetableApi";
+import { getErrorMessage } from "../../service/axios";
 import {
+  asArray,
+  CardShell,
   CardTitle,
+  ErrorNotice,
   Field,
+  formatRange,
+  formatTime,
+  getItemId,
+  isTodayClass,
+  LoadingCard,
   PageHeader,
   SelectBox,
   TextInput,
-  TIMETABLE,
   TimetableList,
   WeeklyTimetableGrid,
 } from "./DashboardShared";
 
+const initialForm = {
+  subject: "",
+  day: "",
+  startTime: "",
+  endTime: "",
+  room: "",
+  teacher: "",
+};
+
+const subjectOptions = ["ICT", "Mathematics", "Physics", "English", "Science", "History"];
+const dayOptions = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
 export default function TimetablePage({ setActivePage }) {
+  const [timetable, setTimetable] = useState([]);
+  const [todayTimetable, setTodayTimetable] = useState([]);
+  const [form, setForm] = useState(initialForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const loadTimetable = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const [all, today] = await Promise.allSettled([getTimetable(), getTodayTimetable()]);
+      if (all.status === "fulfilled") setTimetable(asArray(all.value));
+      if (today.status === "fulfilled") setTodayTimetable(asArray(today.value));
+      if (all.status === "rejected" && today.status === "rejected") {
+        throw all.reason;
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to load timetable."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTimetable();
+  }, [loadTimetable]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.subject || !form.day || !form.startTime || !form.endTime) {
+      setError("Please fill subject, day, start time, and end time.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+      await createTimetableItem(form);
+      setSuccess("Schedule saved successfully.");
+      setForm(initialForm);
+      await loadTimetable();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to save schedule."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this class schedule?")) return;
+    try {
+      setError("");
+      await deleteTimetableItem(id);
+      await loadTimetable();
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to delete schedule."));
+    }
+  };
+
+  const displayToday = useMemo(() => {
+    if (todayTimetable.length) return todayTimetable;
+    const filtered = timetable.filter(isTodayClass);
+    return filtered.length ? filtered : timetable.slice(0, 4);
+  }, [todayTimetable, timetable]);
+
+  const nextClass = displayToday[0] || null;
+
+  if (loading) return <LoadingCard message="Loading timetable from database..." />;
+
   return (
     <>
       <PageHeader
         title="Timetable"
-        subtitle="Schedule, input, and display your school classes for the week."
+        subtitle="Input class schedules and display saved timetable data for this user account."
         action={
           <button
             onClick={() => setActivePage("dashboard")}
@@ -34,53 +130,54 @@ export default function TimetablePage({ setActivePage }) {
         }
       />
 
+      <ErrorNotice message={error} onRetry={loadTimetable} />
+      {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
+
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+        <CardShell className="xl:col-span-2">
           <CardTitle
             icon={Calendar}
             title="Add Class Schedule"
-            subtitle="Input timetable data that will be displayed on today and weekly views."
+            subtitle="Save timetable data to the backend database."
           />
 
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field label="Subject">
-              <SelectBox
-                placeholder="Select subject"
-                options={["ICT", "Mathematics", "Physics", "English"]}
-              />
+              <SelectBox name="subject" value={form.subject} onChange={handleChange} placeholder="Select subject" options={subjectOptions} />
             </Field>
             <Field label="Day">
-              <SelectBox
-                placeholder="Select day"
-                options={["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]}
-              />
+              <SelectBox name="day" value={form.day} onChange={handleChange} placeholder="Select day" options={dayOptions} />
             </Field>
             <Field label="Start Time">
-              <TextInput value="09:00 AM" icon={Clock} />
+              <TextInput name="startTime" value={form.startTime} onChange={handleChange} type="time" icon={Clock} />
             </Field>
             <Field label="End Time">
-              <TextInput value="10:00 AM" icon={Clock} />
+              <TextInput name="endTime" value={form.endTime} onChange={handleChange} type="time" icon={Clock} />
             </Field>
             <Field label="Room">
-              <TextInput placeholder="e.g., Room 101" />
+              <TextInput name="room" value={form.room} onChange={handleChange} placeholder="e.g., Room 101" />
             </Field>
             <Field label="Teacher">
-              <TextInput placeholder="e.g., Dr. Smith" />
+              <TextInput name="teacher" value={form.teacher} onChange={handleChange} placeholder="e.g., Dr. Smith" />
             </Field>
-          </div>
 
-          <div className="mt-5 flex justify-end">
-            <button className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-              <Plus size={16} /> Save Schedule
-            </button>
-          </div>
-        </div>
+            <div className="md:col-span-3 flex justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus size={16} /> {saving ? "Saving..." : "Save Schedule"}
+              </button>
+            </div>
+          </form>
+        </CardShell>
 
-        <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <CardShell>
           <CardTitle
             icon={Target}
             title="Today's Focus"
-            subtitle="AI suggestion from the next class and related materials."
+            subtitle="AI suggestion from the next class."
             iconClass="bg-violet-50 text-violet-600"
           />
 
@@ -88,17 +185,19 @@ export default function TimetablePage({ setActivePage }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold text-indigo-500">Next Class</p>
-                <h3 className="mt-2 text-xl font-bold text-slate-950">Data Structures</h3>
+                <h3 className="mt-2 text-xl font-bold text-slate-950">{nextClass?.subject || "No class"}</h3>
                 <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                  <Clock size={15} /> 10:00 AM – 11:30 AM
+                  <Clock size={15} /> {nextClass ? formatRange(nextClass) : "Add schedule first"}
                 </p>
                 <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-                  <MapPin size={15} /> Room 201
+                  <MapPin size={15} /> {nextClass?.room || nextClass?.location || "No room"}
                 </p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
-                In 45 mins
-              </span>
+              {nextClass && (
+                <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
+                  {formatTime(nextClass.startTime || nextClass.time)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -110,70 +209,38 @@ export default function TimetablePage({ setActivePage }) {
               <div>
                 <p className="font-semibold text-slate-900">AI Study Suggestion</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  Review linked lists and tree traversal notes, then try 5 related flashcards before class.
+                  {nextClass
+                    ? `Review materials linked to ${nextClass.subject} and practice related flashcards before class.`
+                    : "Add your timetable and study materials to receive suggestions."}
                 </p>
               </div>
             </div>
           </div>
-        </aside>
+        </CardShell>
       </section>
 
       <section className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+        <CardShell className="xl:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle
-              icon={Calendar}
-              title="Weekly Timetable"
-              subtitle="Display saved class schedules by day and time."
-            />
-            <div className="flex items-center gap-2">
-              <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Today
-              </button>
-              <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Week of May 19 – May 25
-              </button>
-            </div>
+            <CardTitle icon={Calendar} title="Weekly Timetable" subtitle="Displays saved schedules by day and time." />
+            <span className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600">
+              {timetable.length} saved classes
+            </span>
           </div>
-
           <div className="mt-6">
-            <WeeklyTimetableGrid />
+            <WeeklyTimetableGrid items={timetable} />
           </div>
-        </div>
+        </CardShell>
 
-        <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <CardShell>
           <div className="flex items-center justify-between">
             <CardTitle icon={Calendar} title="Today's Classes" />
-            <button className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
-              View All
-            </button>
+            <button onClick={loadTimetable} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Refresh</button>
           </div>
-
-          <div className="mt-5 space-y-3">
-            {TIMETABLE.map((item) => (
-              <div key={item.subject} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold text-slate-950">{item.subject}</h3>
-                    <p className="mt-1 text-sm text-slate-500">{item.range}</p>
-                    <p className="text-xs text-slate-400">{item.location}</p>
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                      item.live
-                        ? "bg-indigo-50 text-indigo-600"
-                        : item.status === "Next"
-                        ? "bg-violet-50 text-violet-600"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {item.status === "Now" ? "Current" : item.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="mt-5">
+            <TimetableList items={displayToday} onDelete={handleDelete} />
           </div>
-        </aside>
+        </CardShell>
       </section>
     </>
   );

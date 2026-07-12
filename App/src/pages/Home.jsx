@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 // const FloatingOrb = ({ className }) => (
 //   <div className={`absolute rounded-full blur-3xl opacity-20 animate-pulse ${className}`} />
@@ -14,6 +15,7 @@ const FeatureCard = ({ icon, title, desc }) => (
 
 export default function HomePage() {
   const [ready, setReady] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 80);
@@ -67,10 +69,10 @@ export default function HomePage() {
 
         {/* Start Button container */}
         <button
-          onClick={() => (window.location.href = "/chat")}
+          onClick={() => navigate("Login")} // this is link list###
           className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-base shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-100 transition-all duration-200"
         >
-          <span>Start Studying</span>
+            <span>Start Studying</span>
           <svg
             className="w-4 h-4 group-hover:translate-x-1 transition-transform"
             fill="none"
@@ -84,7 +86,7 @@ export default function HomePage() {
           <span className="absolute inset-0 rounded-2xl ring-2 ring-indigo-400/0 group-hover:ring-indigo-400/40 transition-all duration-300" />
         </button>
 
-        <p className="mt-4 text-xs text-white/25">No sign-up required to explore</p>
+        {/* <p className="mt-4 text-xs text-white/25">No sign-up required to explore</p> */}
 
         {/* Feature cards */}
         <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">

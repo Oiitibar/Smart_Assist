@@ -1,145 +1,27 @@
 import {
   BookOpen,
-  Calendar,
   Calculator,
+  Calendar,
   ChevronDown,
   Clock,
+  FileText,
   FlaskConical,
   MapPin,
   Monitor,
 } from "lucide-react";
 
-// Sample data now. Later you can replace these with API/database values.
-export const TIMETABLE = [
-  {
-    time: "10:30 AM",
-    range: "10:30 AM – 11:30 AM",
-    subject: "ICT",
-    location: "Computer Lab",
-    status: "Now",
-    live: true,
-    Icon: Monitor,
-  },
-  {
-    time: "12:00 PM",
-    range: "12:00 PM – 1:00 PM",
-    subject: "Mathematics",
-    location: "Room 203",
-    status: "Next",
-    Icon: Calculator,
-  },
-  {
-    time: "2:00 PM",
-    range: "2:00 PM – 3:00 PM",
-    subject: "Physics",
-    location: "Lab 1",
-    status: "Later",
-    Icon: FlaskConical,
-  },
-  {
-    time: "3:30 PM",
-    range: "3:30 PM – 4:30 PM",
-    subject: "English",
-    location: "Room 105",
-    status: "Later",
-    Icon: BookOpen,
-  },
-];
-
-export const WEEK_DAYS = [
-  { day: "Mon", date: "May 19" },
-  { day: "Tue", date: "May 20" },
-  { day: "Wed", date: "May 21" },
-  { day: "Thu", date: "May 22" },
-  { day: "Fri", date: "May 23" },
-];
+export const WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 export const TIME_ROWS = [
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-];
-
-export const WEEKLY_CLASSES = [
-  { day: "Mon", time: "9:00 AM", subject: "Calculus I", room: "Room 101", tone: "blue" },
-  { day: "Mon", time: "11:00 AM", subject: "Physics", room: "Room 203", tone: "violet" },
-  { day: "Mon", time: "2:00 PM", subject: "English Comp", room: "Room 105", tone: "green" },
-  { day: "Tue", time: "10:00 AM", subject: "Data Structures", room: "Room 201", tone: "rose" },
-  { day: "Tue", time: "1:00 PM", subject: "Discrete Math", room: "Room 204", tone: "amber" },
-  { day: "Wed", time: "9:00 AM", subject: "Calculus I", room: "Room 101", tone: "blue" },
-  { day: "Wed", time: "11:00 AM", subject: "Physics", room: "Room 203", tone: "violet" },
-  { day: "Wed", time: "2:00 PM", subject: "English Comp", room: "Room 105", tone: "green" },
-  { day: "Thu", time: "10:00 AM", subject: "Data Structures", room: "Room 201", tone: "rose" },
-  { day: "Thu", time: "1:00 PM", subject: "Discrete Math", room: "Room 204", tone: "amber" },
-  { day: "Fri", time: "9:00 AM", subject: "Calculus I", room: "Room 101", tone: "blue" },
-  { day: "Fri", time: "11:00 AM", subject: "Physics", room: "Room 203", tone: "violet" },
-  { day: "Fri", time: "2:00 PM", subject: "English Comp", room: "Room 105", tone: "green" },
-];
-
-export const MATERIALS = [
-  {
-    title: "Data Structures Notes.pdf",
-    type: "PDF",
-    category: "ICT",
-    uploaded: "May 23, 2025 • 10:24 AM",
-    size: "2.4 MB",
-  },
-  {
-    title: "Physics Formulas.docx",
-    type: "DOCX",
-    category: "Physics",
-    uploaded: "May 22, 2025 • 03:15 PM",
-    size: "1.1 MB",
-  },
-  {
-    title: "Math Exercises Set 1.pdf",
-    type: "PDF",
-    category: "Math",
-    uploaded: "May 21, 2025 • 09:45 AM",
-    size: "3.7 MB",
-  },
-  {
-    title: "Chemical Reactions.pptx",
-    type: "PPTX",
-    category: "Science",
-    uploaded: "May 20, 2025 • 05:30 PM",
-    size: "5.2 MB",
-  },
-  {
-    title: "English Essay Guide.txt",
-    type: "TXT",
-    category: "English",
-    uploaded: "May 19, 2025 • 11:10 AM",
-    size: "850 KB",
-  },
-];
-
-export const CATEGORIES = [
-  { name: "ICT", count: 12, Icon: Monitor, tone: "violet" },
-  { name: "Physics", count: 10, Icon: FlaskConical, tone: "blue" },
-  { name: "Math", count: 14, Icon: Calculator, tone: "amber" },
-  { name: "English", count: 9, Icon: BookOpen, tone: "green" },
-  { name: "Science", count: 8, Icon: FlaskConical, tone: "rose" },
-];
-
-export const FLASHCARD_TOPICS = [
-  { name: "ICT", cards: 32, Icon: Monitor, tone: "violet" },
-  { name: "Physics", cards: 28, Icon: FlaskConical, tone: "blue" },
-  { name: "Math", cards: 26, Icon: Calculator, tone: "amber" },
-  { name: "English", cards: 24, Icon: BookOpen, tone: "green" },
-];
-
-export const SUGGESTED_SETS = [
-  { title: "Data Structures Basics", cards: 24 },
-  { title: "Arrays & Linked Lists", cards: 18 },
-  { title: "Stacks & Queues", cards: 16 },
-  { title: "Trees & Graphs", cards: 22 },
-  { title: "Sorting Algorithms", cards: 20 },
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
 ];
 
 export const toneStyles = {
@@ -148,7 +30,57 @@ export const toneStyles = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-700",
   amber: "border-amber-200 bg-amber-50 text-amber-700",
   rose: "border-rose-200 bg-rose-50 text-rose-700",
+  slate: "border-slate-200 bg-slate-50 text-slate-700",
 };
+
+export function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+}
+
+export function getItemId(item) {
+  return item?._id || item?.id || item?.materialId || item?.setId || item?.categoryId;
+}
+
+export function subjectIcon(subject = "") {
+  const name = subject.toLowerCase();
+  if (name.includes("math") || name.includes("calculus")) return Calculator;
+  if (name.includes("phys") || name.includes("science") || name.includes("chem")) return FlaskConical;
+  if (name.includes("ict") || name.includes("data") || name.includes("computer")) return Monitor;
+  return BookOpen;
+}
+
+export function fileIcon(type = "") {
+  return FileText;
+}
+
+export function formatTime(value = "") {
+  if (!value) return "--:--";
+  if (value.includes("AM") || value.includes("PM")) return value;
+
+  const [hourRaw, minute = "00"] = String(value).split(":");
+  const hour = Number(hourRaw);
+  if (Number.isNaN(hour)) return value;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute.padStart(2, "0")} ${suffix}`;
+}
+
+export function formatRange(item = {}) {
+  if (item.range) return item.range;
+  return `${formatTime(item.startTime || item.time)} – ${formatTime(item.endTime)}`;
+}
+
+export function getTodayName() {
+  return new Date().toLocaleDateString("en-US", { weekday: "long" });
+}
+
+export function isTodayClass(item = {}) {
+  const today = getTodayName().toLowerCase();
+  return String(item.day || "").toLowerCase() === today;
+}
 
 export function PageHeader({ title, subtitle, action }) {
   return (
@@ -162,12 +94,7 @@ export function PageHeader({ title, subtitle, action }) {
   );
 }
 
-export function CardTitle({
-  icon: Icon,
-  title,
-  subtitle,
-  iconClass = "bg-indigo-50 text-indigo-600",
-}) {
+export function CardTitle({ icon: Icon, title, subtitle, iconClass = "bg-indigo-50 text-indigo-600" }) {
   return (
     <div className="flex items-center gap-3">
       <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${iconClass}`}>
@@ -190,13 +117,15 @@ export function Field({ label, children }) {
   );
 }
 
-export function TextInput({ placeholder, value, icon: Icon }) {
+export function TextInput({ value, onChange, placeholder, type = "text", icon: Icon, name }) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 shadow-sm focus-within:border-indigo-300">
       {Icon && <Icon size={17} className="shrink-0 text-slate-400" />}
       <input
+        name={name}
+        type={type}
         value={value ?? ""}
-        readOnly
+        onChange={onChange}
         placeholder={placeholder}
         className="w-full bg-transparent outline-none placeholder:text-slate-400"
       />
@@ -204,95 +133,115 @@ export function TextInput({ placeholder, value, icon: Icon }) {
   );
 }
 
-export function SelectBox({ placeholder, options = [] }) {
+export function SelectBox({ value, onChange, placeholder, options = [], name }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500 shadow-sm">
-      <span>{placeholder}</span>
-      <ChevronDown size={17} className="text-slate-400" />
-      <select className="sr-only" aria-label={placeholder}>
-        <option>{placeholder}</option>
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
+    <div className="relative">
+      <select
+        name={name}
+        value={value ?? ""}
+        onChange={onChange}
+        className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 py-3 pr-9 text-sm text-slate-700 shadow-sm outline-none focus:border-indigo-300"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => {
+          const optionValue = typeof option === "string" ? option : option.value;
+          const label = typeof option === "string" ? option : option.label;
+          return (
+            <option key={optionValue} value={optionValue}>
+              {label}
+            </option>
+          );
+        })}
       </select>
+      <ChevronDown size={17} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
     </div>
   );
 }
 
-export function TimetableList() {
+export function LoadingCard({ message = "Loading..." }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+      {message}
+    </div>
+  );
+}
+
+export function ErrorNotice({ message, onRetry }) {
+  if (!message) return null;
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <span>{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="font-semibold text-rose-700 underline">
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function EmptyState({ title, text, action }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+      <h3 className="font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{text}</p>
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+export function TimetableList({ items = [], onDelete }) {
+  if (!items.length) {
+    return (
+      <EmptyState
+        title="No classes yet"
+        text="Add class schedule data on the Timetable page to display today's schedule."
+      />
+    );
+  }
+
   return (
     <div className="relative space-y-3 pl-2">
       <div className="absolute bottom-8 left-[5.35rem] top-8 w-px bg-indigo-100" />
-
-      {TIMETABLE.map((item, index) => {
-        const Icon = item.Icon;
+      {items.map((item, index) => {
+        const Icon = subjectIcon(item.subject);
+        const id = getItemId(item);
+        const live = item.live || item.status === "Now" || index === 0;
 
         return (
-          <div
-            key={item.subject}
-            className="relative grid grid-cols-[78px_1fr] items-stretch gap-5"
-          >
+          <div key={id || `${item.subject}-${index}`} className="relative grid grid-cols-[78px_1fr] items-stretch gap-5">
             <div className="pt-4 text-right">
-              <p
-                className={`text-sm font-bold ${
-                  item.live ? "text-indigo-600" : "text-slate-700"
-                }`}
-              >
-                {item.time}
+              <p className={`text-sm font-bold ${live ? "text-indigo-600" : "text-slate-700"}`}>
+                {formatTime(item.startTime || item.time)}
               </p>
-              <p className="mt-1 text-[11px] text-slate-400">{item.status}</p>
+              <p className="mt-1 text-[11px] text-slate-400">{live ? "Now" : item.status || item.day}</p>
             </div>
 
-            <span
-              className={`absolute left-[4.95rem] top-7 z-10 h-3 w-3 rounded-full border-2 border-white ${
-                item.live ? "bg-indigo-600" : "bg-slate-300"
-              }`}
-            />
+            <span className={`absolute left-[4.95rem] top-7 z-10 h-3 w-3 rounded-full border-2 border-white ${live ? "bg-indigo-600" : "bg-slate-300"}`} />
 
-            <div
-              className={`flex items-center justify-between gap-4 rounded-2xl border p-4 transition ${
-                item.live
-                  ? "border-indigo-200 bg-indigo-50/80 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-indigo-100 hover:bg-slate-50"
-              }`}
-            >
+            <div className={`flex items-center justify-between gap-4 rounded-2xl border p-4 transition ${live ? "border-indigo-200 bg-indigo-50/80 shadow-sm" : "border-slate-200 bg-white hover:border-indigo-100 hover:bg-slate-50"}`}>
               <div className="flex min-w-0 items-center gap-4">
-                <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                    item.live
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : index === 1
-                      ? "bg-violet-50 text-violet-600"
-                      : index === 2
-                      ? "bg-blue-50 text-blue-600"
-                      : "bg-amber-50 text-amber-600"
-                  }`}
-                >
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${live ? "bg-white text-indigo-600 shadow-sm" : "bg-slate-50 text-slate-500"}`}>
                   <Icon size={20} />
                 </div>
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-base font-semibold text-slate-950">
-                      {item.subject}
-                    </h3>
-                    {item.live && (
-                      <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                        Live
-                      </span>
-                    )}
+                    <h3 className="truncate text-base font-semibold text-slate-950">{item.subject || "Untitled class"}</h3>
+                    {live && <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Live</span>}
                   </div>
-
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock size={14} /> {item.range}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin size={14} /> {item.location}
-                    </span>
+                    <span className="inline-flex items-center gap-1.5"><Clock size={14} /> {formatRange(item)}</span>
+                    <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {item.room || item.location || "No room"}</span>
                   </div>
                 </div>
               </div>
+
+              {onDelete && id && (
+                <button onClick={() => onDelete(id)} className="rounded-xl border border-rose-100 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50">
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         );
@@ -301,36 +250,38 @@ export function TimetableList() {
   );
 }
 
-export function WeeklyTimetableGrid() {
-  const findClass = (day, time) =>
-    WEEKLY_CLASSES.find((item) => item.day === day && item.time === time);
+export function WeeklyTimetableGrid({ items = [] }) {
+  const days = WEEK_DAYS;
+  const rows = TIME_ROWS;
+  const findClass = (day, hour) =>
+    items.find((item) => {
+      const itemDay = String(item.day || "").toLowerCase();
+      const itemHour = String(item.startTime || item.time || "").slice(0, 2);
+      return itemDay === day.toLowerCase() && itemHour === hour.slice(0, 2);
+    });
 
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[820px] rounded-2xl border border-slate-200">
         <div className="grid grid-cols-6 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold text-slate-600">
           <div className="border-r border-slate-200 px-3 py-3">Time</div>
-          {WEEK_DAYS.map((day) => (
-            <div key={day.day} className="border-r border-slate-200 px-3 py-3 last:border-r-0">
-              <p>{day.day}</p>
-              <p className="font-normal text-slate-400">{day.date}</p>
+          {days.map((day) => (
+            <div key={day} className="border-r border-slate-200 px-3 py-3 last:border-r-0">
+              {day.slice(0, 3)}
             </div>
           ))}
         </div>
-
-        {TIME_ROWS.map((time) => (
+        {rows.map((time) => (
           <div key={time} className="grid min-h-[70px] grid-cols-6 border-b border-slate-100 last:border-b-0">
-            <div className="border-r border-slate-200 px-3 py-4 text-xs font-medium text-slate-500">
-              {time}
-            </div>
-            {WEEK_DAYS.map((day) => {
-              const block = findClass(day.day, time);
+            <div className="border-r border-slate-200 px-3 py-4 text-xs font-medium text-slate-500">{formatTime(time)}</div>
+            {days.map((day) => {
+              const item = findClass(day, time);
               return (
-                <div key={`${day.day}-${time}`} className="border-r border-slate-100 p-2 last:border-r-0">
-                  {block && (
-                    <div className={`rounded-xl border px-3 py-2 text-xs ${toneStyles[block.tone]}`}>
-                      <p className="font-bold">{block.subject}</p>
-                      <p className="mt-0.5 text-[11px] opacity-80">{block.room}</p>
+                <div key={`${day}-${time}`} className="border-r border-slate-100 p-2 last:border-r-0">
+                  {item && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                      <p className="font-bold">{item.subject}</p>
+                      <p className="mt-0.5 text-[11px] opacity-80">{item.room || item.location}</p>
                     </div>
                   )}
                 </div>
@@ -342,3 +293,17 @@ export function WeeklyTimetableGrid() {
     </div>
   );
 }
+
+export function MaterialTypeBadge({ type }) {
+  return (
+    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold uppercase text-slate-600">
+      {type || "FILE"}
+    </span>
+  );
+}
+
+export function CardShell({ children, className = "" }) {
+  return <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>{children}</div>;
+}
+
+export { Calendar, Clock, MapPin };

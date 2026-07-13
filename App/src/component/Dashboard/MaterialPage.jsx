@@ -1,316 +1,321 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Edit3, Eye, FileText, Folder, Link2, Plus, Trash2, UploadCloud, X } from "lucide-react";
-import { createCategory, deleteCategory, getCategories } from "../../service/categoryApi";
-import { assignMaterialCategory, deleteMaterial, getMaterials, uploadMaterial } from "../../service/materialApi";
-import { getErrorMessage } from "../../service/axios";
+import { useMemo, useRef, useState } from "react";
 import {
-  asArray,
-  CardShell,
-  CardTitle,
-  EmptyState,
-  ErrorNotice,
-  Field,
-  getItemId,
-  LoadingCard,
-  MaterialTypeBadge,
-  PageHeader,
-  SelectBox,
-  TextInput,
-} from "./DashboardShared";
+  BookOpen,
+  Check,
+  FileImage,
+  FileText,
+  FileType2,
+  FolderPlus,
+  MoreHorizontal,
+  Plus,
+  Presentation,
+  Search,
+  Trash2,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import { EmptyState, Modal, PageHeader } from "./DashboardShared";
+import {
+  iconButtonClass,
+  inputClass,
+  labelClass,
+  pageClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectClass,
+} from "./ui";
 
-export default function MaterialPage() {
-  const [materials, setMaterials] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [categoryName, setCategoryName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+const palette = [
+  ["#4f46e5", "#eef2ff", "💻"],
+  ["#8b5cf6", "#f5f3ff", "📐"],
+  ["#0ea5e9", "#f0f9ff", "⚛️"],
+  ["#10b981", "#ecfdf5", "🧬"],
+  ["#f59e0b", "#fffbeb", "📚"],
+  ["#f43f5e", "#fff1f2", "🎨"],
+];
 
-  const loadMaterialPage = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const [materialData, categoryData] = await Promise.all([getMaterials(), getCategories()]);
-      const materialList = asArray(materialData);
-      setMaterials(materialList);
-      setCategories(asArray(categoryData));
-      if (!selectedMaterialId && materialList[0]) setSelectedMaterialId(getItemId(materialList[0]));
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to load materials."));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedMaterialId]);
+const typeIcons = {
+  PDF: FileText,
+  DOC: FileType2,
+  DOCX: FileType2,
+  PPT: Presentation,
+  PPTX: Presentation,
+  PNG: FileImage,
+  JPG: FileImage,
+  JPEG: FileImage,
+  WEBP: FileImage,
+  TXT: FileText,
+};
 
-  useEffect(() => {
-    loadMaterialPage();
-  }, [loadMaterialPage]);
-
-  const selectedMaterial = useMemo(
-    () => materials.find((material) => getItemId(material) === selectedMaterialId),
-    [materials, selectedMaterialId]
-  );
-
-  const materialOptions = materials.map((material) => ({
-    value: getItemId(material),
-    label: material.title || material.name || material.originalName || "Untitled material",
-  }));
-
-  const categoryOptions = categories.map((category) => ({
-    value: getItemId(category),
-    label: category.name,
-  }));
-
-  const handleUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setBusy(true);
-      setError("");
-      setSuccess("");
-      const uploaded = await uploadMaterial(file, selectedCategoryId);
-      setSuccess("Material uploaded successfully.");
-      await loadMaterialPage();
-      if (getItemId(uploaded)) setSelectedMaterialId(getItemId(uploaded));
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to upload material."));
-    } finally {
-      setBusy(false);
-      event.target.value = "";
-    }
-  };
-
-  const handleCreateCategory = async () => {
-    if (!categoryName.trim()) {
-      setError("Please enter category name.");
-      return;
-    }
-
-    try {
-      setBusy(true);
-      setError("");
-      setSuccess("");
-      await createCategory({ name: categoryName.trim() });
-      setCategoryName("");
-      setSuccess("Category created successfully.");
-      await loadMaterialPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to create category."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleAssignCategory = async () => {
-    if (!selectedMaterialId || !selectedCategoryId) {
-      setError("Please select material and category.");
-      return;
-    }
-
-    try {
-      setBusy(true);
-      setError("");
-      setSuccess("");
-      await assignMaterialCategory(selectedMaterialId, selectedCategoryId);
-      setSuccess("Category assigned successfully.");
-      await loadMaterialPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to assign category."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDeleteMaterial = async (id) => {
-    if (!window.confirm("Delete this material?")) return;
-    try {
-      setError("");
-      await deleteMaterial(id);
-      await loadMaterialPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete material."));
-    }
-  };
-
-  const handleDeleteCategory = async (id) => {
-    if (!window.confirm("Delete this category?")) return;
-    try {
-      setError("");
-      await deleteCategory(id);
-      await loadMaterialPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete category."));
-    }
-  };
-
-  if (loading) return <LoadingCard message="Loading materials and categories..." />;
-
-  return (
-    <>
-      <PageHeader
-        title="Materials"
-        subtitle="Manage uploaded study materials and assign them to group categories."
-      />
-
-      <ErrorNotice message={error} onRetry={loadMaterialPage} />
-      {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
-
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
-        <div className="space-y-5 xl:col-span-3">
-          <CardShell>
-            <CardTitle icon={UploadCloud} title="Upload Study Materials" subtitle="Upload files, then connect them to categories for flashcard generation." />
-            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
-              <label className="flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:bg-indigo-50 lg:col-span-2">
-                <UploadCloud size={44} className="text-indigo-600" />
-                <h3 className="mt-4 font-semibold text-indigo-600">Drag & drop files here</h3>
-                <p className="mt-2 text-sm text-slate-500">PDF, DOCX, PPTX, TXT, images • Max 50MB per file</p>
-                <span className="mt-5 rounded-xl border border-indigo-100 bg-white px-5 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
-                  {busy ? "Uploading..." : "Browse Files"}
-                </span>
-                <input type="file" onChange={handleUpload} className="hidden" accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-              </label>
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-950">Recent Uploads</h3>
-                  <button onClick={loadMaterialPage} className="text-xs font-semibold text-indigo-600">Refresh</button>
-                </div>
-                <div className="mt-3 space-y-3">
-                  {materials.slice(0, 4).map((material) => (
-                    <div key={getItemId(material)} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <MaterialTypeBadge type={material.type || material.fileType} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{material.title || material.name}</p>
-                        <p className="text-xs text-slate-500">Uploaded</p>
-                      </div>
-                      <Check size={16} className="text-emerald-500" />
-                    </div>
-                  ))}
-                  {!materials.length && <p className="text-sm text-slate-500">No recent uploads yet.</p>}
-                </div>
-              </div>
-            </div>
-          </CardShell>
-
-          <CardShell>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle icon={Folder} title="Manage Categories" subtitle="Create, edit, and organize material group categories." />
-              <div className="flex gap-2">
-                <TextInput value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="New category" />
-                <button onClick={handleCreateCategory} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
-                  <Plus size={16} /> Add
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
-              {categories.length ? (
-                categories.map((category) => (
-                  <div key={getItemId(category)} className="flex items-center justify-between rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">{category.name}</p>
-                      <p className="text-xs text-slate-500">{category.materialCount ?? category.count ?? 0} materials</p>
-                    </div>
-                    <button onClick={() => handleDeleteCategory(getItemId(category))} className="text-rose-400 hover:text-rose-600"><Trash2 size={16} /></button>
-                  </div>
-                ))
-              ) : (
-                <div className="md:col-span-3 xl:col-span-5"><EmptyState title="No categories" text="Create your first category to organize materials." /></div>
-              )}
-            </div>
-          </CardShell>
-
-          <CardShell>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle icon={FileText} title="Material Library" subtitle="Browse, filter, and manage uploaded materials." />
-              <span className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-500">{materials.length} materials</span>
-            </div>
-
-            <div className="mt-5 overflow-x-auto">
-              {materials.length ? (
-                <table className="w-full min-w-[780px] text-left text-sm">
-                  <thead className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="py-3">File Name</th>
-                      <th>Type</th>
-                      <th>Category</th>
-                      <th>Uploaded On</th>
-                      <th>Size</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {materials.map((material) => (
-                      <tr key={getItemId(material)}>
-                        <td className="py-4 font-semibold text-slate-900">{material.title || material.name}</td>
-                        <td><MaterialTypeBadge type={material.type || material.fileType} /></td>
-                        <td><span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">{material.category?.name || material.categoryName || "Unassigned"}</span></td>
-                        <td className="text-slate-500">{material.uploadedAt ? new Date(material.uploadedAt).toLocaleString() : "--"}</td>
-                        <td className="text-slate-500">{material.size || material.sizeLabel || "--"}</td>
-                        <td>
-                          <div className="flex justify-end gap-2 text-slate-400">
-                            <Eye size={16} />
-                            <Link2 size={16} />
-                            <Edit3 size={16} />
-                            <button onClick={() => handleDeleteMaterial(getItemId(material))}><Trash2 size={16} className="text-rose-400" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <EmptyState title="No materials yet" text="Upload PDFs, PowerPoints, DOCX, TXT, or notes to start." />
-              )}
-            </div>
-          </CardShell>
-        </div>
-
-        <aside className="space-y-5">
-          <CardShell>
-            <CardTitle icon={FileText} title="Material Overview" />
-            <div className="mt-5 space-y-3">
-              <StatBox value={materials.length} label="Total Materials" />
-              <StatBox value={categories.length} label="Categories" />
-              <StatBox value={materials.slice(0, 7).length} label="Recently Added" />
-            </div>
-          </CardShell>
-
-          <CardShell>
-            <CardTitle icon={Folder} title="Assign Category" subtitle="Connect input materials to a group category." />
-            <div className="mt-5 space-y-4">
-              <Field label="Selected Material">
-                <SelectBox value={selectedMaterialId} onChange={(event) => setSelectedMaterialId(event.target.value)} placeholder="Select material" options={materialOptions} />
-              </Field>
-              <Field label="Assign to Category">
-                <SelectBox value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)} placeholder="Select category" options={categoryOptions} />
-              </Field>
-              {selectedMaterial && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-semibold text-slate-900">{selectedMaterial.title || selectedMaterial.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{selectedMaterial.size || "--"}</p>
-                </div>
-              )}
-              <button onClick={handleAssignCategory} disabled={busy} className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
-                Assign Category
-              </button>
-            </div>
-          </CardShell>
-        </aside>
-      </section>
-    </>
-  );
+function readableSize(bytes) {
+  if (!bytes) return "Unknown size";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function StatBox({ value, label }) {
+function fileExtension(name = "") {
+  return name.split(".").pop()?.toUpperCase() || "FILE";
+}
+
+export default function MaterialPage({
+  categories,
+  materials,
+  flashcards,
+  onAddCategory,
+  onAddMaterial,
+  onDeleteMaterial,
+}) {
+  const [selectedId, setSelectedId] = useState("all");
+  const [showCategory, setShowCategory] = useState(false);
+  const [showMaterial, setShowMaterial] = useState(false);
+  const [query, setQuery] = useState("");
+  const [categoryName, setCategoryName] = useState("");
+  const [selectedPalette, setSelectedPalette] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
+  const [form, setForm] = useState({
+    title: "",
+    categoryId: categories[0]?.id || "",
+    description: "",
+  });
+
+  const filtered = useMemo(
+    () => materials.filter((item) => {
+      const matchesCategory = selectedId === "all" || item.categoryId === selectedId;
+      const matchesSearch = item.title.toLowerCase().includes(query.toLowerCase());
+      return matchesCategory && matchesSearch;
+    }),
+    [materials, selectedId, query],
+  );
+
+  const createCategory = (event) => {
+    event.preventDefault();
+    if (!categoryName.trim()) return;
+    const [color, soft, emoji] = palette[selectedPalette];
+    const id = `${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+    onAddCategory({ id, name: categoryName.trim(), color, soft, emoji });
+    setCategoryName("");
+    setShowCategory(false);
+    setForm((value) => ({ ...value, categoryId: id }));
+  };
+
+  const chooseFile = (file) => {
+    if (!file) return;
+    setSelectedFile(file);
+    setForm((value) => ({ ...value, title: value.title || file.name }));
+  };
+
+  const addMaterial = (event) => {
+    event.preventDefault();
+    if (!selectedFile || !form.categoryId) return;
+    const type = fileExtension(selectedFile.name);
+    onAddMaterial({
+      id: crypto.randomUUID(),
+      title: form.title.trim() || selectedFile.name,
+      originalName: selectedFile.name,
+      categoryId: form.categoryId,
+      type,
+      mimeType: selectedFile.type,
+      size: selectedFile.size,
+      detail: form.description.trim() || `${type} · ${readableSize(selectedFile.size)}`,
+      updated: "Just now",
+      filePath: `uploads/${Date.now()}-${selectedFile.name.replace(/\s+/g, "-")}`,
+    });
+    setSelectedFile(null);
+    setForm((value) => ({ ...value, title: "", description: "" }));
+    setShowMaterial(false);
+  };
+
+  const openUpload = () => {
+    setForm((value) => ({ ...value, categoryId: categories[0]?.id || "" }));
+    setSelectedFile(null);
+    setShowMaterial(true);
+  };
+
   return (
-    <div className="rounded-2xl border border-slate-200 p-4">
-      <p className="text-3xl font-bold text-slate-950">{value}</p>
-      <p className="text-sm text-slate-500">{label}</p>
+    <div className={pageClass}>
+      <PageHeader
+        eyebrow="Knowledge library"
+        title="Materials"
+        description="Upload and organize study files. These materials become the source for AI flashcard generation."
+        action={
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button className={`${secondaryButtonClass} flex-1 sm:flex-none`} onClick={() => setShowCategory(true)}>
+              <FolderPlus size={17} /> New category
+            </button>
+            <button className={`${primaryButtonClass} flex-1 sm:flex-none`} onClick={openUpload} disabled={!categories.length}>
+              <UploadCloud size={17} /> Upload material
+            </button>
+          </div>
+        }
+      />
+
+      <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        {categories.map((category) => {
+          const count = materials.filter((item) => item.categoryId === category.id).length;
+          const active = selectedId === category.id;
+          return (
+            <button
+              key={category.id}
+              onClick={() => setSelectedId(active ? "all" : category.id)}
+              className={`material-category-card relative min-h-[112px] rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 ${
+                active ? "shadow-md" : "shadow-sm"
+              }`}
+              style={{
+                background: `linear-gradient(145deg, #ffffff, ${category.soft})`,
+                borderColor: active ? category.color : `${category.color}2b`,
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-lg shadow-sm">{category.emoji}</span>
+                <MoreHorizontal size={17} className="text-slate-400" />
+              </div>
+              <strong className="mt-3 block text-sm text-slate-900 dark:text-white">{category.name}</strong>
+              <small className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">{count} materials · {flashcards[category.id]?.length || 0} cards</small>
+            </button>
+          );
+        })}
+
+        <button
+          className="grid min-h-[112px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white p-3 text-center transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-500/5"
+          onClick={() => setShowCategory(true)}
+        >
+          <span>
+            <span className="mx-auto grid h-9 w-9 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"><Plus size={20} /></span>
+            <strong className="mt-2 block text-sm text-slate-800 dark:text-slate-100">Add category</strong>
+          </span>
+        </button>
+      </section>
+
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4 dark:border-slate-800">
+          <div>
+            <h2 className="text-base font-bold text-slate-950 dark:text-white">Study files</h2>
+            <p className="mt-0.5 text-xs text-slate-400">{filtered.length} resources</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="flex h-10 min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-400 sm:w-64 dark:border-slate-700 dark:bg-slate-950">
+              <Search size={16} />
+              <input className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none dark:text-slate-100" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials" />
+              {query && <button onClick={() => setQuery("")}><X size={15} /></button>}
+            </label>
+            <select className={`${selectClass} sm:w-44`} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+              <option value="all">All categories</option>
+              {categories.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="grid min-h-72 place-items-center">
+            <EmptyState
+              title="No materials found"
+              message="Upload a PDF, PowerPoint, Word file, text file, or image."
+              action={<button className={primaryButtonClass} onClick={openUpload} disabled={!categories.length}>Upload material</button>}
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {filtered.map((material) => {
+              const category = categories.find((item) => item.id === material.categoryId);
+              const Icon = typeIcons[material.type] || BookOpen;
+              return (
+                <article key={material.id} className="grid grid-cols-[42px_minmax(0,1fr)_36px] items-center gap-3 px-3 py-3 sm:grid-cols-[42px_minmax(180px,1fr)_auto_80px_90px_36px] sm:px-4">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ color: category?.color, backgroundColor: category?.soft }}>
+                    <Icon size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <strong className="block truncate text-sm text-slate-900 dark:text-white">{material.title}</strong>
+                    <span className="mt-1 block truncate text-[11px] text-slate-400">{material.detail || `${material.type} · ${readableSize(material.size)}`}</span>
+                  </div>
+                  <span className="hidden rounded-lg px-2 py-1.5 text-[11px] font-semibold sm:inline-flex" style={{ color: category?.color, backgroundColor: category?.soft }}>
+                    {category?.emoji} {category?.name}
+                  </span>
+                  <span className="hidden text-xs font-semibold text-slate-500 sm:block dark:text-slate-400">{material.type}</span>
+                  <time className="hidden text-[11px] text-slate-400 sm:block">{material.updated}</time>
+                  <button className={iconButtonClass} onClick={() => onDeleteMaterial?.(material.id)} aria-label="Delete material"><Trash2 size={16} /></button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {showCategory && (
+        <Modal title="Create category" description="The category will also appear in Flashcards." onClose={() => setShowCategory(false)}>
+          <form className="grid gap-4" onSubmit={createCategory}>
+            <label className={labelClass}>
+              Category name
+              <input className={inputClass} value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="e.g. Computer Science" autoFocus />
+            </label>
+            <label className={labelClass}>
+              Color and icon
+              <div className="flex flex-wrap gap-2">
+                {palette.map(([color, soft, emoji], index) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setSelectedPalette(index)}
+                    className="relative grid h-11 w-11 place-items-center rounded-xl border-2 text-lg"
+                    style={{ backgroundColor: soft, borderColor: selectedPalette === index ? color : "transparent" }}
+                  >
+                    {emoji}
+                    {selectedPalette === index && <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-indigo-600 text-white"><Check size={10} /></span>}
+                  </button>
+                ))}
+              </div>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className={secondaryButtonClass} onClick={() => setShowCategory(false)}>Cancel</button>
+              <button className={primaryButtonClass} type="submit">Create category</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showMaterial && (
+        <Modal title="Upload study material" description="The actual file is sent to your backend upload middleware; MongoDB stores its metadata." onClose={() => setShowMaterial(false)}>
+          <form className="grid gap-4" onSubmit={addMaterial}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.webp"
+              onChange={(event) => chooseFile(event.target.files?.[0])}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex min-h-32 flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4 text-center transition hover:bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-500/5 dark:hover:bg-indigo-500/10"
+            >
+              <UploadCloud size={28} className="text-indigo-600 dark:text-indigo-300" />
+              <strong className="mt-2 text-sm text-slate-800 dark:text-slate-100">{selectedFile ? selectedFile.name : "Choose a file"}</strong>
+              <span className="mt-1 text-xs text-slate-400">PDF, DOCX, PPTX, TXT, PNG, JPG, WEBP</span>
+              {selectedFile && <span className="mt-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">{readableSize(selectedFile.size)}</span>}
+            </button>
+
+            <label className={labelClass}>
+              Display title
+              <input className={inputClass} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Material title" />
+            </label>
+            <label className={labelClass}>
+              Category
+              <select className={selectClass} value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
+                {categories.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.name}</option>)}
+              </select>
+            </label>
+            <label className={labelClass}>
+              Description
+              <input className={inputClass} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional note about this file" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className={secondaryButtonClass} onClick={() => setShowMaterial(false)}>Cancel</button>
+              <button className={primaryButtonClass} type="submit" disabled={!selectedFile}>Upload material</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

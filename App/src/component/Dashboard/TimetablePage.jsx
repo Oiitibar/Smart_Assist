@@ -1,247 +1,301 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Calendar, Clock, MapPin, Plus, Target, Brain } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
-  createTimetableItem,
-  deleteTimetableItem,
-  getTimetable,
-  getTodayTimetable,
-} from "../../service/timetableApi";
-import { getErrorMessage } from "../../service/axios";
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  List,
+  MapPin,
+  Plus,
+  Trash2,
+  UserRound,
+} from "lucide-react";
+import { EmptyState, Modal, PageHeader } from "./DashboardShared";
 import {
-  asArray,
-  CardShell,
-  CardTitle,
-  ErrorNotice,
-  Field,
-  formatRange,
-  formatTime,
-  getItemId,
-  isTodayClass,
-  LoadingCard,
-  PageHeader,
-  SelectBox,
-  TextInput,
-  TimetableList,
-  WeeklyTimetableGrid,
-} from "./DashboardShared";
+  iconButtonClass,
+  inputClass,
+  labelClass,
+  pageClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectClass,
+} from "./ui";
 
-const initialForm = {
-  subject: "",
-  day: "",
-  startTime: "",
-  endTime: "",
-  room: "",
-  teacher: "",
-};
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const longDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const times = ["8 AM", "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM"];
+const colors = ["#4f46e5", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e"];
 
-const subjectOptions = ["ICT", "Mathematics", "Physics", "English", "Science", "History"];
-const dayOptions = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+function timePosition(time) {
+  const [raw, modifier] = String(time).trim().split(" ");
+  let [hour, minute = 0] = raw.split(":").map(Number);
+  if (modifier === "PM" && hour !== 12) hour += 12;
+  if (modifier === "AM" && hour === 12) hour = 0;
+  return Math.max(0, (hour + minute / 60 - 8) * 68);
+}
 
-export default function TimetablePage({ setActivePage }) {
-  const [timetable, setTimetable] = useState([]);
-  const [todayTimetable, setTodayTimetable] = useState([]);
-  const [form, setForm] = useState(initialForm);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+function getWeekDates() {
+  const now = new Date();
+  const monday = new Date(now);
+  const day = now.getDay();
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  return days.map((_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return date;
+  });
+}
 
-  const loadTimetable = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const [all, today] = await Promise.allSettled([getTimetable(), getTodayTimetable()]);
-      if (all.status === "fulfilled") setTimetable(asArray(all.value));
-      if (today.status === "fulfilled") setTodayTimetable(asArray(today.value));
-      if (all.status === "rejected" && today.status === "rejected") {
-        throw all.reason;
-      }
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to load timetable."));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedule }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [view, setView] = useState("week");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [form, setForm] = useState({
+    title: "",
+    day: "Mon",
+    start: "09:00 AM",
+    end: "10:00 AM",
+    room: "",
+    teacher: "",
+    type: "Lecture",
+    color: colors[0],
+  });
 
-  useEffect(() => {
-    loadTimetable();
-  }, [loadTimetable]);
+  const grouped = useMemo(
+    () => Object.fromEntries(days.map((day) => [day, schedules.filter((item) => item.day === day)])),
+    [schedules],
+  );
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  };
+  const weekDates = useMemo(() => {
+    const base = getWeekDates();
+    return base.map((date) => {
+      const shifted = new Date(date);
+      shifted.setDate(date.getDate() + weekOffset * 7);
+      return shifted;
+    });
+  }, [weekOffset]);
 
-  const handleSubmit = async (event) => {
+  const weekTitle = `${weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${weekDates[4].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+
+  const submit = (event) => {
     event.preventDefault();
-    if (!form.subject || !form.day || !form.startTime || !form.endTime) {
-      setError("Please fill subject, day, start time, and end time.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-      await createTimetableItem(form);
-      setSuccess("Schedule saved successfully.");
-      setForm(initialForm);
-      await loadTimetable();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to save schedule."));
-    } finally {
-      setSaving(false);
-    }
+    if (!form.title.trim()) return;
+    onAddSchedule({
+      ...form,
+      id: crypto.randomUUID(),
+      title: form.title.trim(),
+      room: form.room.trim() || "Room TBA",
+      teacher: form.teacher.trim() || "Instructor TBA",
+    });
+    setShowAdd(false);
+    setForm((value) => ({ ...value, title: "", room: "", teacher: "" }));
   };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this class schedule?")) return;
-    try {
-      setError("");
-      await deleteTimetableItem(id);
-      await loadTimetable();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete schedule."));
-    }
-  };
-
-  const displayToday = useMemo(() => {
-    if (todayTimetable.length) return todayTimetable;
-    const filtered = timetable.filter(isTodayClass);
-    return filtered.length ? filtered : timetable.slice(0, 4);
-  }, [todayTimetable, timetable]);
-
-  const nextClass = displayToday[0] || null;
-
-  if (loading) return <LoadingCard message="Loading timetable from database..." />;
 
   return (
-    <>
+    <div className={pageClass}>
       <PageHeader
+        eyebrow="Plan your week"
         title="Timetable"
-        subtitle="Input class schedules and display saved timetable data for this user account."
+        description="Add classes and study sessions in one compact weekly schedule."
         action={
-          <button
-            onClick={() => setActivePage("dashboard")}
-            className="inline-flex items-center gap-2 rounded-xl border border-indigo-100 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
-          >
-            Back to dashboard <ArrowRight size={16} />
+          <button className={primaryButtonClass} onClick={() => setShowAdd(true)}>
+            <Plus size={17} /> Add class
           </button>
         }
       />
 
-      <ErrorNotice message={error} onRetry={loadTimetable} />
-      {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
+      <div className={`${panelClass} mb-3 flex flex-wrap items-center justify-between gap-3 p-3`}>
+        <div className="flex items-center gap-2">
+          <button className={iconButtonClass} onClick={() => setWeekOffset((value) => value - 1)} aria-label="Previous week">
+            <ChevronLeft size={18} />
+          </button>
+          <button className={secondaryButtonClass} onClick={() => setWeekOffset(0)}>Today</button>
+          <button className={iconButtonClass} onClick={() => setWeekOffset((value) => value + 1)} aria-label="Next week">
+            <ChevronRight size={18} />
+          </button>
+        </div>
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <CardShell className="xl:col-span-2">
-          <CardTitle
-            icon={Calendar}
-            title="Add Class Schedule"
-            subtitle="Save timetable data to the backend database."
+        <h2 className="text-sm font-bold text-slate-900 dark:text-white">{weekTitle}</h2>
+
+        <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+          <button
+            onClick={() => setView("week")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${view === "week" ? "bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300" : "text-slate-500 dark:text-slate-400"}`}
+          >
+            <CalendarDays size={15} /> Week
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${view === "list" ? "bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300" : "text-slate-500 dark:text-slate-400"}`}
+          >
+            <List size={15} /> List
+          </button>
+        </div>
+      </div>
+
+      {schedules.length === 0 ? (
+        <section className={`${panelClass} grid min-h-80 place-items-center`}>
+          <EmptyState
+            title="No classes yet"
+            message="Add your first class to build a personal weekly timetable."
+            action={<button className={primaryButtonClass} onClick={() => setShowAdd(true)}>Add class</button>}
           />
+        </section>
+      ) : view === "week" ? (
+        <section className={`${panelClass} overflow-hidden`}>
+          <div className="overflow-x-auto">
+            <div className="min-w-[790px]">
+              <div className="grid h-16 grid-cols-[64px_repeat(5,minmax(140px,1fr))] border-b border-slate-200 dark:border-slate-800">
+                <div className="grid place-items-center text-[10px] text-slate-400">GMT+6:30</div>
+                {days.map((day, index) => {
+                  const date = weekDates[index];
+                  const isToday = weekOffset === 0 && date.toDateString() === new Date().toDateString();
+                  return (
+                    <div className="grid place-items-center border-l border-slate-100 dark:border-slate-800" key={day}>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{longDays[index]}</span>
+                      <strong className={`mt-1 grid h-8 w-8 place-items-center rounded-xl text-sm ${isToday ? "bg-indigo-600 text-white" : "text-slate-800 dark:text-slate-100"}`}>
+                        {date.getDate()}
+                      </strong>
+                    </div>
+                  );
+                })}
+              </div>
 
-          <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Field label="Subject">
-              <SelectBox name="subject" value={form.subject} onChange={handleChange} placeholder="Select subject" options={subjectOptions} />
-            </Field>
-            <Field label="Day">
-              <SelectBox name="day" value={form.day} onChange={handleChange} placeholder="Select day" options={dayOptions} />
-            </Field>
-            <Field label="Start Time">
-              <TextInput name="startTime" value={form.startTime} onChange={handleChange} type="time" icon={Clock} />
-            </Field>
-            <Field label="End Time">
-              <TextInput name="endTime" value={form.endTime} onChange={handleChange} type="time" icon={Clock} />
-            </Field>
-            <Field label="Room">
-              <TextInput name="room" value={form.room} onChange={handleChange} placeholder="e.g., Room 101" />
-            </Field>
-            <Field label="Teacher">
-              <TextInput name="teacher" value={form.teacher} onChange={handleChange} placeholder="e.g., Dr. Smith" />
-            </Field>
+              <div className="grid h-[680px] grid-cols-[64px_repeat(5,minmax(140px,1fr))] overflow-y-auto">
+                <div className="relative">
+                  {times.map((time) => (
+                    <span className="block h-[68px] pr-2 pt-2 text-right text-[10px] text-slate-400" key={time}>{time}</span>
+                  ))}
+                </div>
 
-            <div className="md:col-span-3 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Plus size={16} /> {saving ? "Saving..." : "Save Schedule"}
-              </button>
+                {days.map((day) => (
+                  <div className="relative border-l border-slate-100 dark:border-slate-800" key={day}>
+                    {times.map((time) => <i className="block h-[68px] border-b border-slate-100 dark:border-slate-800/80" key={time} />)}
+                    {grouped[day].map((item) => {
+                      const top = timePosition(item.start);
+                      const height = Math.max(56, timePosition(item.end) - top - 4);
+                      return (
+                        <div
+                          className="absolute left-1.5 right-1.5 z-[2] overflow-hidden rounded-xl border border-l-4 p-2.5 text-left shadow-sm"
+                          key={item.id || `${item.title}-${item.start}`}
+                          style={{
+                            top,
+                            height,
+                            color: item.color,
+                            borderColor: `${item.color}38`,
+                            borderLeftColor: item.color,
+                            backgroundColor: `${item.color}13`,
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <strong className="truncate text-xs text-slate-900 dark:text-white">{item.title}</strong>
+                            <button
+                              className="shrink-0 rounded-md p-0.5 text-slate-400 hover:bg-white/70 hover:text-rose-500 dark:hover:bg-slate-900"
+                              onClick={() => onDeleteSchedule?.(item.id)}
+                              aria-label="Delete class"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                          <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">{item.start} – {item.end}</span>
+                          {height > 70 && <small className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><MapPin size={12} /> {item.room}</small>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className={`${panelClass} overflow-hidden`}>
+          {days.map((day, index) => (
+            <div key={day} className="border-b border-slate-100 p-4 last:border-b-0 dark:border-slate-800">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">{longDays[index]}</h3>
+                  <p className="text-[11px] text-slate-400">{weekDates[index].toLocaleDateString("en-US", { month: "long", day: "numeric" })}</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{grouped[day].length}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {grouped[day].length === 0 ? (
+                  <p className="text-xs text-slate-400">No classes</p>
+                ) : grouped[day].map((item) => (
+                  <article key={item.id || `${item.title}-${item.start}`} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <i className="h-10 w-1 rounded-full" style={{ backgroundColor: item.color }} />
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm text-slate-900 dark:text-white">{item.title}</strong>
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{item.start} – {item.end} · {item.room}</p>
+                    </div>
+                    <button className={iconButtonClass} onClick={() => onDeleteSchedule?.(item.id)}><Trash2 size={15} /></button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {showAdd && (
+        <Modal title="Add timetable entry" description="Add a class, lab, or personal study session." onClose={() => setShowAdd(false)}>
+          <form className="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={submit}>
+            <label className={`${labelClass} sm:col-span-2`}>
+              Class or session name
+              <input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Data Structures" autoFocus />
+            </label>
+            <label className={labelClass}>
+              Day
+              <select className={selectClass} value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })}>
+                {days.map((day) => <option key={day}>{day}</option>)}
+              </select>
+            </label>
+            <label className={labelClass}>
+              Type
+              <select className={selectClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                <option>Lecture</option><option>Lab</option><option>Seminar</option><option>Study</option>
+              </select>
+            </label>
+            <label className={labelClass}>
+              <span className="flex items-center gap-1.5"><Clock3 size={14} /> Start time</span>
+              <input className={inputClass} value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} placeholder="09:00 AM" />
+            </label>
+            <label className={labelClass}>
+              <span className="flex items-center gap-1.5"><Clock3 size={14} /> End time</span>
+              <input className={inputClass} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} placeholder="10:00 AM" />
+            </label>
+            <label className={labelClass}>
+              <span className="flex items-center gap-1.5"><UserRound size={14} /> Instructor</span>
+              <input className={inputClass} value={form.teacher} onChange={(e) => setForm({ ...form, teacher: e.target.value })} placeholder="Dr. Smith" />
+            </label>
+            <label className={labelClass}>
+              <span className="flex items-center gap-1.5"><MapPin size={14} /> Room</span>
+              <input className={inputClass} value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} placeholder="Building A · 204" />
+            </label>
+            <label className={`${labelClass} sm:col-span-2`}>
+              Color
+              <div className="flex flex-wrap gap-2">
+                {colors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setForm({ ...form, color })}
+                    className="h-8 w-8 rounded-full border-4 border-white shadow-sm dark:border-slate-900"
+                    style={{ backgroundColor: color, outline: form.color === color ? `2px solid ${color}` : "1px solid transparent" }}
+                    aria-label={`Choose ${color}`}
+                  />
+                ))}
+              </div>
+            </label>
+            <div className="flex justify-end gap-2 sm:col-span-2">
+              <button type="button" className={secondaryButtonClass} onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className={primaryButtonClass} type="submit">Add to timetable</button>
             </div>
           </form>
-        </CardShell>
-
-        <CardShell>
-          <CardTitle
-            icon={Target}
-            title="Today's Focus"
-            subtitle="AI suggestion from the next class."
-            iconClass="bg-violet-50 text-violet-600"
-          />
-
-          <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-indigo-500">Next Class</p>
-                <h3 className="mt-2 text-xl font-bold text-slate-950">{nextClass?.subject || "No class"}</h3>
-                <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                  <Clock size={15} /> {nextClass ? formatRange(nextClass) : "Add schedule first"}
-                </p>
-                <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-                  <MapPin size={15} /> {nextClass?.room || nextClass?.location || "No room"}
-                </p>
-              </div>
-              {nextClass && (
-                <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
-                  {formatTime(nextClass.startTime || nextClass.time)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm">
-                <Brain size={19} />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">AI Study Suggestion</p>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  {nextClass
-                    ? `Review materials linked to ${nextClass.subject} and practice related flashcards before class.`
-                    : "Add your timetable and study materials to receive suggestions."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardShell>
-      </section>
-
-      <section className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <CardShell className="xl:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle icon={Calendar} title="Weekly Timetable" subtitle="Displays saved schedules by day and time." />
-            <span className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600">
-              {timetable.length} saved classes
-            </span>
-          </div>
-          <div className="mt-6">
-            <WeeklyTimetableGrid items={timetable} />
-          </div>
-        </CardShell>
-
-        <CardShell>
-          <div className="flex items-center justify-between">
-            <CardTitle icon={Calendar} title="Today's Classes" />
-            <button onClick={loadTimetable} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Refresh</button>
-          </div>
-          <div className="mt-5">
-            <TimetableList items={displayToday} onDelete={handleDelete} />
-          </div>
-        </CardShell>
-      </section>
-    </>
+        </Modal>
+      )}
+    </div>
   );
 }

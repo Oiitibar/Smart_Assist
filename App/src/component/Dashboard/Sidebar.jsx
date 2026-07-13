@@ -1,136 +1,119 @@
 import {
-  LayoutDashboard,
-  Calendar,
-  Layers,
   BookOpen,
+  CalendarDays,
+  GraduationCap,
+  LayoutDashboard,
+  Layers3,
+  LogOut,
   Settings,
   Sparkles,
-  PanelLeftClose,
-  PanelLeftOpen,
+  X,
 } from "lucide-react";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
-  { icon: Calendar, label: "Timetable", id: "timetable" },
-  { icon: Layers, label: "Flashcard", id: "flashcard" },
-  { icon: BookOpen, label: "Material", id: "material" },
-  { icon: Settings, label: "Setting", id: "setting" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "timetable", label: "Timetable", icon: CalendarDays },
+  { id: "flashcard", label: "Flashcards", icon: Layers3 },
+  { id: "material", label: "Materials", icon: BookOpen },
+  { id: "setting", label: "Settings", icon: Settings },
 ];
 
-function NavItem({ item, active, collapsed, onClick }) {
-  const Icon = item.icon;
+export default function Sidebar({ activePage, onNavigate, mobileOpen, onClose, user, onLogout }) {
+  const initials = (user?.name || user?.fullName || "Student")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const navigate = (page) => {
+    onNavigate(page);
+    onClose?.();
+  };
 
   return (
-    <button
-      onClick={onClick}
-      title={collapsed ? item.label : undefined}
-      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13.5px] mb-1 transition-all text-left ${
-        collapsed ? "justify-center px-0" : ""
-      } ${
-        active
-          ? "bg-white text-indigo-600 font-semibold shadow-sm"
-          : "text-white/75 hover:bg-white/15 hover:text-white"
-      }`}
-    >
-      <Icon size={18} className="shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
-    </button>
-  );
-}
-
-export default function Sidebar({
-  activePage = "dashboard",
-  onNavigate,
-  collapsed = false,
-  onToggle,
-}) {
-  return (
-    <aside
-      className={`flex flex-col h-full bg-indigo-500 min-h-screen shrink-0 transition-all duration-300 ease-in-out ${
-        collapsed ? "w-[68px]" : "w-56"
-      }`}
-    >
-      <div
-        className={`flex items-center gap-3 px-5 py-5 border-b border-white/15 ${
-          collapsed ? "px-0 justify-center" : "justify-between"
-        }`}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-white/25 flex items-center justify-center shrink-0">
-            <Sparkles size={20} className="text-white" />
-          </div>
-
-          {!collapsed && (
-            <span className="text-white font-semibold text-[15px] whitespace-nowrap">
-              Smart Assist
-            </span>
-          )}
-        </div>
-
-        {!collapsed && (
-          <button
-            onClick={onToggle}
-            aria-label="Collapse sidebar"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors shrink-0"
-          >
-            <PanelLeftClose size={16} />
-          </button>
-        )}
-      </div>
-
-      {collapsed && (
-        <div className="px-3 pt-3">
-          <button
-            onClick={onToggle}
-            aria-label="Expand sidebar"
-            className="w-full h-9 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors"
-          >
-            <PanelLeftOpen size={16} />
-          </button>
-        </div>
+    <>
+      {mobileOpen && (
+        <button
+          className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden"
+          aria-label="Close navigation"
+          onClick={onClose}
+        />
       )}
 
-      <nav className="flex-1 px-3 py-4 overflow-hidden">
-        {!collapsed && (
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40 px-2 pb-2">
-            Menu
-          </p>
-        )}
-
-        {navItems.map((item) => (
-          <NavItem
-            key={item.id}
-            item={item}
-            active={activePage === item.id}
-            collapsed={collapsed}
-            onClick={() => onNavigate?.(item.id)}
-          />
-        ))}
-      </nav>
-
-      {!collapsed ? (
-        <div className="px-3 py-4 border-t border-white/15">
-          <div className="bg-white/15 rounded-xl p-3">
-            <span className="inline-flex items-center gap-1 bg-white/25 text-white text-[10px] font-semibold px-2 py-1 rounded-full mb-2">
-              <Sparkles size={11} /> Today Goal
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-indigo-400/20 bg-gradient-to-b from-indigo-600 to-indigo-700 text-white shadow-xl transition-transform duration-300 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800 lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex h-[68px] items-center justify-between border-b border-white/15 px-4">
+          <button className="flex items-center gap-3 text-left" onClick={() => navigate("dashboard")}>
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15 shadow-inner">
+              <GraduationCap size={22} />
             </span>
+            <span>
+              <strong className="block text-sm font-bold">Smart Assist</strong>
+              <small className="text-[11px] text-white/65">Student planner</small>
+            </span>
+          </button>
+          <button className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 lg:hidden" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
 
-            <p className="text-white/85 text-xs leading-relaxed mb-3">
-              Finish 4 study actions and keep your learning streak alive.
-            </p>
+        <nav className="flex-1 px-3 py-4">
+          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">Workspace</p>
+          <div className="space-y-1">
+            {navItems.map(({ id, label, icon: Icon }) => {
+              const active = activePage === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => navigate(id)}
+                  className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition ${
+                    active
+                      ? "bg-white text-indigo-700 shadow-sm dark:bg-indigo-500 dark:text-white"
+                      : "text-white/75 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
-            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full w-4/5 bg-white rounded-full" />
+        <div className="m-3 rounded-2xl border border-white/15 bg-white/10 p-3.5">
+          <div className="flex items-start gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/15">
+              <Sparkles size={16} />
+            </span>
+            <div>
+              <strong className="text-xs">Study smarter today</strong>
+              <p className="mt-1 text-[11px] leading-5 text-white/65">Review one deck and finish your priority tasks.</p>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="px-3 py-4 border-t border-white/15 flex justify-center">
-          <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center">
-            <Sparkles size={16} className="text-white" />
+
+        <div className="border-t border-white/15 p-3">
+          <div className="mb-2 flex items-center gap-3 rounded-xl bg-white/10 p-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-xs font-bold text-indigo-700">
+              {initials}
+            </span>
+            <div className="min-w-0 flex-1">
+              <strong className="block truncate text-xs">{user?.name || user?.fullName || "Student"}</strong>
+              <small className="block truncate text-[10px] text-white/55">{user?.email || "student@example.com"}</small>
+            </div>
           </div>
+          <button
+            className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+            onClick={onLogout}
+          >
+            <LogOut size={17} /> Log out
+          </button>
         </div>
-      )}
-    </aside>
+      </aside>
+    </>
   );
 }

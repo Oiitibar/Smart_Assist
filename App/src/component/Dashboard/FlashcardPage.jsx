@@ -1,297 +1,315 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookOpen, Brain, FileText, Layers, Sparkles, UploadCloud, X } from "lucide-react";
-import { getCategories } from "../../service/categoryApi";
-import { generateFlashcards, getFlashcardSets, updateCardReview } from "../../service/flashcardApi";
-import { getMaterials, uploadMaterial } from "../../service/materialApi";
-import { getErrorMessage } from "../../service/axios";
+import { useEffect, useMemo, useState } from "react";
 import {
-  asArray,
-  CardShell,
-  CardTitle,
-  EmptyState,
-  ErrorNotice,
-  Field,
-  getItemId,
-  LoadingCard,
-  MaterialTypeBadge,
-  PageHeader,
-  SelectBox,
-} from "./DashboardShared";
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FileText,
+  Layers3,
+  Plus,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
+import { EmptyState, Modal, PageHeader, ProgressBar } from "./DashboardShared";
+import {
+  inputClass,
+  labelClass,
+  pageClass,
+  panelClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectClass,
+  textareaClass,
+} from "./ui";
 
-export default function FlashcardPage() {
-  const [materials, setMaterials] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [sets, setSets] = useState([]);
+export default function FlashcardPage({
+  categories,
+  materials,
+  flashcards,
+  onAddFlashcard,
+  onGenerateFlashcards,
+  onNavigate,
+}) {
+  const [selectedId, setSelectedId] = useState(categories[0]?.id || "");
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [difficulty, setDifficulty] = useState("Medium");
-  const [cardsPerTopic, setCardsPerTopic] = useState("10");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const loadFlashcardPage = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const [materialData, categoryData, setData] = await Promise.all([
-        getMaterials(),
-        getCategories(),
-        getFlashcardSets(),
-      ]);
-      const materialList = asArray(materialData);
-      setMaterials(materialList);
-      setCategories(asArray(categoryData));
-      setSets(asArray(setData));
-      if (!selectedMaterialId && materialList[0]) setSelectedMaterialId(getItemId(materialList[0]));
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to load flashcard data."));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedMaterialId]);
+  const [generateCount, setGenerateCount] = useState(5);
+  const [showManual, setShowManual] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [mastered, setMastered] = useState([]);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    loadFlashcardPage();
-  }, [loadFlashcardPage]);
+    if (!categories.some((item) => item.id === selectedId)) setSelectedId(categories[0]?.id || "");
+  }, [categories, selectedId]);
 
-  const selectedMaterial = useMemo(
-    () => materials.find((item) => getItemId(item) === selectedMaterialId),
-    [materials, selectedMaterialId]
+  const category = categories.find((item) => item.id === selectedId);
+  const cards = useMemo(() => flashcards[selectedId] || [], [flashcards, selectedId]);
+  const current = cards.length ? cards[index % cards.length] : null;
+  const categoryMaterials = useMemo(
+    () => materials.filter((item) => item.categoryId === selectedId),
+    [materials, selectedId],
   );
 
-  const selectedSet = sets[0] || null;
-  const firstCard = selectedSet?.cards?.[0] || selectedSet?.flashcards?.[0] || null;
+  useEffect(() => {
+    setIndex(0);
+    setFlipped(false);
+    setMastered([]);
+    setSelectedMaterialId(categoryMaterials[0]?.id || "");
+  }, [selectedId]);
 
-  const materialOptions = materials.map((item) => ({
-    value: getItemId(item),
-    label: item.title || item.name || item.originalName || "Untitled material",
-  }));
-
-  const categoryOptions = categories.map((item) => ({
-    value: getItemId(item),
-    label: item.name,
-  }));
-
-  const handleUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setBusy(true);
-      setError("");
-      setSuccess("");
-      const uploaded = await uploadMaterial(file, selectedCategoryId);
-      const id = getItemId(uploaded);
-      setSuccess("Material uploaded successfully.");
-      await loadFlashcardPage();
-      if (id) setSelectedMaterialId(id);
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to upload material."));
-    } finally {
-      setBusy(false);
-      event.target.value = "";
+  useEffect(() => {
+    if (!categoryMaterials.some((item) => item.id === selectedMaterialId)) {
+      setSelectedMaterialId(categoryMaterials[0]?.id || "");
     }
+  }, [categoryMaterials, selectedMaterialId]);
+
+  const move = (direction) => {
+    if (!cards.length) return;
+    setIndex((value) => (value + direction + cards.length) % cards.length);
+    setFlipped(false);
   };
 
-  const handleGenerate = async () => {
-    if (!selectedMaterialId) {
-      setError("Please select or upload a material first.");
-      return;
-    }
-
-    try {
-      setBusy(true);
-      setError("");
-      setSuccess("");
-      await generateFlashcards({
-        materialId: selectedMaterialId,
-        categoryId: selectedCategoryId,
-        difficulty,
-        cardsPerTopic: Number(cardsPerTopic),
-      });
-      setSuccess("Flashcards generated successfully.");
-      await loadFlashcardPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to generate flashcards."));
-    } finally {
-      setBusy(false);
-    }
+  const submitManual = (event) => {
+    event.preventDefault();
+    if (!selectedId || !question.trim() || !answer.trim()) return;
+    onAddFlashcard(selectedId, {
+      id: crypto.randomUUID(),
+      question: question.trim(),
+      answer: answer.trim(),
+      source: "Manual",
+      createdAt: new Date().toISOString(),
+    });
+    setQuestion("");
+    setAnswer("");
+    setShowManual(false);
   };
 
-  const handleReview = async (result) => {
-    const setId = getItemId(selectedSet);
-    const cardId = getItemId(firstCard);
-    if (!setId || !cardId) return;
-
-    try {
-      await updateCardReview(setId, cardId, result);
-      await loadFlashcardPage();
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to save review result."));
-    }
+  const generate = async () => {
+    if (!selectedId || !selectedMaterialId) return;
+    setGenerating(true);
+    await Promise.resolve(onGenerateFlashcards(selectedId, selectedMaterialId, Number(generateCount)));
+    setGenerating(false);
+    setIndex(0);
+    setFlipped(false);
   };
 
-  if (loading) return <LoadingCard message="Loading flashcards and materials..." />;
+  if (!categories.length) {
+    return (
+      <div className={pageClass}>
+        <PageHeader title="Flashcards" description="Review cards by subject and generate them from saved materials." />
+        <section className={`${panelClass} grid min-h-80 place-items-center`}>
+          <EmptyState
+            title="Create a category first"
+            message="Add a subject category and material before generating flashcards."
+            action={<button className={primaryButtonClass} onClick={() => onNavigate("material")}>Go to materials</button>}
+          />
+        </section>
+      </div>
+    );
+  }
+
+  const currentMastered = current ? mastered.includes(current.id) : false;
 
   return (
-    <>
+    <div className={pageClass}>
       <PageHeader
-        title="AI Flashcards"
-        subtitle="Input materials, group them by category, and generate review cards from database data."
+        eyebrow="Active recall"
+        title="Flashcards"
+        description="Review by subject, generate cards from an existing material, or create a card manually."
+        action={
+          <button className={secondaryButtonClass} onClick={() => setShowManual(true)}>
+            <Plus size={17} /> Manual card
+          </button>
+        }
       />
 
-      <ErrorNotice message={error} onRetry={loadFlashcardPage} />
-      {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
+      <div className="mb-3 flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900" role="tablist">
+        {categories.map((item) => {
+          const active = selectedId === item.id;
+          return (
+            <button
+              role="tab"
+              aria-selected={active}
+              className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                active
+                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                  : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+              onClick={() => setSelectedId(item.id)}
+              key={item.id}
+            >
+              <span>{item.emoji}</span>
+              {item.name}
+              <small className={`grid h-5 min-w-5 place-items-center rounded-md px-1 text-[10px] ${active ? "bg-white dark:bg-slate-900" : "bg-slate-100 dark:bg-slate-800"}`}>
+                {flashcards[item.id]?.length || 0}
+              </small>
+            </button>
+          );
+        })}
+      </div>
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
-        <div className="space-y-5 xl:col-span-3">
-          <CardShell>
-            <CardTitle icon={UploadCloud} title="Add Source Material" subtitle="Upload or choose material to generate flashcards." />
+      <section className={`${panelClass} mb-4 p-3 sm:p-4`}>
+        <div className="grid gap-3 lg:grid-cols-[minmax(180px,1fr)_minmax(220px,1.4fr)_110px_auto] lg:items-end">
+          <label className={labelClass}>
+            Subject category
+            <select className={selectClass} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+              {categories.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.name}</option>)}
+            </select>
+          </label>
 
-            <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
-              <label className="flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:bg-indigo-50 lg:col-span-2">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
-                  <UploadCloud size={28} />
-                </div>
-                <h3 className="mt-4 font-semibold text-slate-950">Drag & drop files here</h3>
-                <p className="mt-1 text-sm text-indigo-600">or click to browse</p>
-                <p className="mt-3 text-xs text-slate-500">Supports PDF, PPT, DOCX, TXT and notes up to 50MB</p>
-                <input type="file" onChange={handleUpload} className="hidden" accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.png,.jpg,.jpeg" />
-              </label>
+          <label className={labelClass}>
+            Select saved material
+            <select
+              className={selectClass}
+              value={selectedMaterialId}
+              onChange={(event) => setSelectedMaterialId(event.target.value)}
+              disabled={!categoryMaterials.length}
+            >
+              {!categoryMaterials.length && <option value="">No material in this category</option>}
+              {categoryMaterials.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+            </select>
+          </label>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Material</p>
-                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                  <Field label="Choose material">
-                    <SelectBox
-                      value={selectedMaterialId}
-                      onChange={(event) => setSelectedMaterialId(event.target.value)}
-                      placeholder="Select material"
-                      options={materialOptions}
-                    />
-                  </Field>
-                  {selectedMaterial && (
-                    <div className="mt-3 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                        <FileText size={19} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-950">{selectedMaterial.title || selectedMaterial.name}</p>
-                        <p className="text-xs text-slate-500">{selectedMaterial.type || selectedMaterial.fileType || "FILE"} • {selectedMaterial.size || selectedMaterial.sizeLabel || "--"}</p>
-                      </div>
-                      <button onClick={() => setSelectedMaterialId("")} className="text-slate-400 hover:text-rose-500"><X size={16} /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardShell>
+          <label className={labelClass}>
+            Cards
+            <select className={selectClass} value={generateCount} onChange={(event) => setGenerateCount(event.target.value)}>
+              <option value="3">3 cards</option><option value="5">5 cards</option><option value="10">10 cards</option>
+            </select>
+          </label>
 
-          <CardShell>
-            <CardTitle icon={Layers} title="Group Category Section" subtitle="Choose a material category before generating flashcards." />
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
-              {categories.length ? (
-                categories.map((category) => (
-                  <button
-                    key={getItemId(category)}
-                    onClick={() => setSelectedCategoryId(getItemId(category))}
-                    className={`rounded-2xl border px-4 py-3 text-left transition hover:shadow-sm ${selectedCategoryId === getItemId(category) ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"}`}
-                  >
-                    <span className="block font-semibold text-slate-900">{category.name}</span>
-                    <span className="text-xs text-slate-500">{category.materialCount ?? category.count ?? 0} materials</span>
-                  </button>
-                ))
-              ) : (
-                <div className="md:col-span-4">
-                  <EmptyState title="No categories yet" text="Create categories in the Material page first." />
-                </div>
-              )}
-            </div>
-          </CardShell>
-
-          <CardShell>
-            <CardTitle icon={Sparkles} title="Generate Flashcards" subtitle="Generate cards from the selected material and category." />
-            <div className="mt-5 grid grid-cols-1 items-end gap-4 md:grid-cols-4">
-              <button
-                onClick={handleGenerate}
-                disabled={busy}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Sparkles size={17} /> {busy ? "Working..." : "Generate Flashcards"}
-              </button>
-              <Field label="Difficulty Level">
-                <SelectBox value={difficulty} onChange={(event) => setDifficulty(event.target.value)} placeholder="Medium" options={["Easy", "Medium", "Hard"]} />
-              </Field>
-              <Field label="Cards Per Topic">
-                <SelectBox value={cardsPerTopic} onChange={(event) => setCardsPerTopic(event.target.value)} placeholder="10" options={["5", "10", "15", "20"]} />
-              </Field>
-              <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-white px-5 py-3 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50">
-                <BookOpen size={17} /> Review Set
-              </button>
-            </div>
-          </CardShell>
-
-          <CardShell>
-            <CardTitle icon={BookOpen} title="Flashcard Preview & Review" subtitle="Review cards generated for this user account." />
-            {firstCard ? (
-              <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[190px_1fr_1fr]">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-500">Overall Progress</p>
-                  <div className="mt-3 h-2 rounded-full bg-slate-200"><div className="h-full w-[62%] rounded-full bg-indigo-600" /></div>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between"><span className="text-slate-500">Total Cards</span><b>{selectedSet?.cards?.length || selectedSet?.totalCards || 0}</b></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Reviewed</span><b>{selectedSet?.reviewedCount || 0}</b></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Accuracy</span><b>{selectedSet?.accuracy || 0}%</b></div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5">
-                  <p className="text-xs font-semibold text-indigo-600">Question</p>
-                  <p className="mt-4 text-base font-semibold leading-relaxed text-slate-900">{firstCard.question}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5">
-                  <p className="text-xs font-semibold text-emerald-600">Answer</p>
-                  <p className="mt-4 text-base font-semibold leading-relaxed text-slate-900">{firstCard.answer}</p>
-                  <div className="mt-5 flex gap-3">
-                    <button onClick={() => handleReview("known")} className="flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">I knew this</button>
-                    <button onClick={() => handleReview("unknown")} className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">I didn't know this</button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5"><EmptyState title="No flashcards yet" text="Upload material and click Generate Flashcards to create a set." /></div>
-            )}
-          </CardShell>
+          <button className={primaryButtonClass} onClick={generate} disabled={!selectedMaterialId || generating}>
+            <Sparkles size={17} /> {generating ? "Generating..." : "Generate with AI"}
+          </button>
         </div>
+        {!categoryMaterials.length && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+            Add a material to {category?.name} before using AI generation.
+          </p>
+        )}
+      </section>
 
-        <aside className="space-y-5">
-          <CardShell>
-            <CardTitle icon={Brain} title="AI Recommendation" subtitle="Suggested sets from generated data." iconClass="bg-violet-50 text-violet-600" />
-            <div className="mt-5 space-y-3">
-              {sets.length ? (
-                sets.slice(0, 5).map((set) => (
-                  <button key={getItemId(set)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-indigo-200 hover:bg-indigo-50/50">
-                    <span className="text-sm font-semibold text-slate-900">{set.title || set.name}</span>
-                    <span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-600">{set.totalCards || set.cards?.length || 0} cards</span>
-                  </button>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500">No generated sets yet.</p>
-              )}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+        <article className={`${panelClass} min-w-0 p-4 sm:p-5`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-600 dark:text-indigo-400">Review deck</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{category?.emoji} {category?.name}</h2>
             </div>
-          </CardShell>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+              {cards.length ? `${index + 1} / ${cards.length}` : "0 cards"}
+            </span>
+          </div>
 
-          <CardShell>
-            <h2 className="text-lg font-semibold text-indigo-600">Set Summary</h2>
-            <div className="mt-5 space-y-4 text-sm">
-              <div className="flex justify-between gap-3"><span className="text-slate-500">Source Material</span><b>{selectedMaterial?.title || selectedMaterial?.name || "None"}</b></div>
-              <div className="flex justify-between gap-3"><span className="text-slate-500">Total Sets</span><b>{sets.length}</b></div>
-              <div className="flex justify-between gap-3"><span className="text-slate-500">Selected Category</span><b>{categories.find((cat) => getItemId(cat) === selectedCategoryId)?.name || "All"}</b></div>
+          {cards.length === 0 ? (
+            <div className="grid min-h-[390px] place-items-center">
+              <EmptyState
+                title={`No ${category?.name} cards yet`}
+                message="Choose one of your saved materials above for AI generation, or add a manual card."
+                action={<button className={secondaryButtonClass} onClick={() => setShowManual(true)}>Create manual card</button>}
+              />
             </div>
-          </CardShell>
+          ) : (
+            <>
+              <div className="relative mx-auto my-5 h-[310px] w-full max-w-[620px] [perspective:1400px] sm:h-[340px]">
+                <i className="absolute inset-x-5 bottom-0 top-5 rotate-1 rounded-3xl border border-indigo-100 bg-indigo-50/70 dark:border-indigo-900/50 dark:bg-indigo-500/5" />
+                <i className="absolute inset-x-2 bottom-2 top-2 -rotate-1 rounded-3xl border border-indigo-100 bg-indigo-50/90 dark:border-indigo-900/50 dark:bg-indigo-500/10" />
+                <button
+                  className={`absolute inset-0 z-10 rounded-3xl border-0 bg-transparent p-0 shadow-xl transition-transform duration-500 [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""}`}
+                  onClick={() => setFlipped((value) => !value)}
+                >
+                  <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50 p-6 text-center [backface-visibility:hidden] dark:border-indigo-900/50 dark:from-slate-900 dark:to-indigo-950/40 sm:p-10">
+                    <span className="absolute top-5 rounded-lg bg-indigo-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">Question</span>
+                    <h3 className="max-w-lg text-xl font-bold leading-8 text-slate-950 sm:text-2xl dark:text-white">{current?.question}</h3>
+                    <small className="absolute bottom-5 flex items-center gap-1.5 text-[11px] text-slate-400"><RotateCcw size={14} /> Tap to reveal the answer</small>
+                  </div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-indigo-500 bg-gradient-to-br from-indigo-500 to-indigo-700 p-6 text-center text-white [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-10">
+                    <span className="absolute top-5 rounded-lg bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">Answer</span>
+                    <p className="max-w-lg text-base font-semibold leading-7 sm:text-xl">{current?.answer}</p>
+                    <small className="absolute bottom-5 flex items-center gap-1.5 text-[11px] text-white/70"><RotateCcw size={14} /> Tap to see the question</small>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 sm:gap-3">
+                <button className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" onClick={() => move(-1)} aria-label="Previous card">
+                  <ArrowLeft size={20} />
+                </button>
+                <button
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition ${
+                    currentMastered
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  }`}
+                  onClick={() => current && setMastered((items) => items.includes(current.id) ? items.filter((id) => id !== current.id) : [...items, current.id])}
+                >
+                  <Check size={17} /> {currentMastered ? "Mastered" : "Mark as known"}
+                </button>
+                <button className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" onClick={() => move(1)} aria-label="Next card">
+                  <ArrowRight size={20} />
+                </button>
+              </div>
+
+              <div className="mx-auto mt-4 max-w-[620px] rounded-2xl border border-slate-200 p-3 dark:border-slate-800">
+                <div className="mb-2 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Deck progress</span><strong>{mastered.length} of {cards.length} mastered</strong>
+                </div>
+                <ProgressBar value={(mastered.length / cards.length) * 100} color={category?.color || "#4f46e5"} />
+              </div>
+            </>
+          )}
+        </article>
+
+        <aside className={`${panelClass} h-fit p-4`}>
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"><Layers3 size={19} /></span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Deck details</h3>
+              <p className="text-[11px] text-slate-400">Current subject summary</p>
+            </div>
+          </div>
+          <div className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+            <div className="flex items-center justify-between p-3 text-xs"><span className="text-slate-500 dark:text-slate-400">Cards</span><strong className="text-slate-900 dark:text-white">{cards.length}</strong></div>
+            <div className="flex items-center justify-between p-3 text-xs"><span className="text-slate-500 dark:text-slate-400">Materials</span><strong className="text-slate-900 dark:text-white">{categoryMaterials.length}</strong></div>
+            <div className="flex items-center justify-between p-3 text-xs"><span className="text-slate-500 dark:text-slate-400">Known</span><strong className="text-slate-900 dark:text-white">{mastered.length}</strong></div>
+          </div>
+          {current?.source && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
+              <FileText size={16} className="mt-0.5 shrink-0 text-indigo-500" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Current source</p>
+                <p className="mt-0.5 truncate text-xs font-bold text-slate-800 dark:text-slate-100">{current.source}</p>
+              </div>
+            </div>
+          )}
         </aside>
       </section>
-    </>
+
+      {showManual && (
+        <Modal title="Create a manual flashcard" description="Save a custom question and answer to the selected subject." onClose={() => setShowManual(false)}>
+          <form className="grid gap-4" onSubmit={submitManual}>
+            <label className={labelClass}>
+              Category
+              <select className={selectClass} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+                {categories.map((item) => <option value={item.id} key={item.id}>{item.emoji} {item.name}</option>)}
+              </select>
+            </label>
+            <label className={labelClass}>
+              Question
+              <textarea className={textareaClass} rows="4" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="What do you want to remember?" autoFocus />
+            </label>
+            <label className={labelClass}>
+              Answer
+              <textarea className={textareaClass} rows="5" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Write a clear answer..." />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className={secondaryButtonClass} onClick={() => setShowManual(false)}>Cancel</button>
+              <button className={primaryButtonClass} type="submit"><Plus size={17} /> Add card</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
   );
 }

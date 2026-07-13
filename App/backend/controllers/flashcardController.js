@@ -53,6 +53,55 @@ exports.generateFlashcards = async (req, res) => {
   res.status(201).json(set);
 };
 
+exports.createManualFlashcard = async (req, res) => {
+  try {
+    const { categoryId, question, answer } = req.body;
+
+    if (!categoryId || !question?.trim() || !answer?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Category, question, and answer are required",
+      });
+    }
+
+    const category = await Category.findOne({
+      _id: categoryId,
+      userId: req.user._id,
+    });
+
+    if (!category) {
+      return res.status(404).json({ success: false, message: "Category not found" });
+    }
+
+    let set = await FlashcardSet.findOne({
+      userId: req.user._id,
+      categoryId,
+      sourceType: "manual",
+    });
+
+    if (!set) {
+      set = await FlashcardSet.create({
+        userId: req.user._id,
+        categoryId,
+        title: `${category.name} manual cards`,
+        sourceType: "manual",
+        cards: [],
+      });
+    }
+
+    set.cards.push({
+      question: question.trim(),
+      answer: answer.trim(),
+      known: false,
+    });
+
+    await set.save();
+    return res.status(201).json({ success: true, data: set });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.updateCardReview = async (req, res) => {
   const { cardId, result } = req.body;
 

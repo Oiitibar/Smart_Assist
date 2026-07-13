@@ -13,6 +13,7 @@ const timetableRoutes = require("./routes/timetableRoutes");
 const materialRoutes = require("./routes/materialRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const flashcardRoutes = require("./routes/flashcardRoutes");
+const taskRoutes = require("./routes/taskRoutes");
 
 dotenv.config();
 connectDB();
@@ -43,6 +44,7 @@ app.use("/api/timetable", timetableRoutes);
 app.use("/api/materials", materialRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/flashcards", flashcardRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "API route not found" });

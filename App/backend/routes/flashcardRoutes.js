@@ -5,12 +5,14 @@ const {
   generateFlashcards,
   updateCardReview,
   deleteFlashcardSet,
+  createManualFlashcard,
 } = require("../controllers/flashcardController");
 
 const router = express.Router();
 
 router.get("/", protect, getFlashcardSets);
 router.post("/generate", protect, generateFlashcards);
+router.post("/manual", protect, createManualFlashcard);
 router.put("/:setId/review", protect, updateCardReview);
 router.delete("/:setId", protect, deleteFlashcardSet);
 

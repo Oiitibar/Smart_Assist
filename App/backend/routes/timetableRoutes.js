@@ -1,19 +1,14 @@
 const express = require("express");
 const protect = require("../middleware/authMiddleware");
-const {
-  getTimetable,
-  getTodayTimetable,
-  createTimetableItem,
-  updateTimetableItem,
-  deleteTimetableItem,
-} = require("../controllers/timetableController");
+const asyncHandler = require("../middleware/asyncHandler");
+const controller = require("../controllers/timetableController");
 
 const router = express.Router();
 
-router.get("/", protect, getTimetable);
-router.get("/today", protect, getTodayTimetable);
-router.post("/", protect, createTimetableItem);
-router.put("/:id", protect, updateTimetableItem);
-router.delete("/:id", protect, deleteTimetableItem);
+router.get("/", protect, asyncHandler(controller.getTimetable));
+router.get("/today", protect, asyncHandler(controller.getTodayTimetable));
+router.post("/", protect, asyncHandler(controller.createTimetableItem));
+router.put("/:id", protect, asyncHandler(controller.updateTimetableItem));
+router.delete("/:id", protect, asyncHandler(controller.deleteTimetableItem));
 
 module.exports = router;

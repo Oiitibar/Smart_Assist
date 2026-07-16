@@ -10,15 +10,15 @@ const categorySchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
+      required: [true, "Category name is required"],
       trim: true,
+      maxlength: 60,
     },
-    color: {
-      type: String,
-      default: "indigo",
-    },
+    color: { type: String, default: "#4f46e5" },
+    soft: { type: String, default: "#eef2ff" },
+    emoji: { type: String, default: "📘" },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 categorySchema.index({ userId: 1, name: 1 }, { unique: true });

@@ -12,22 +12,14 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: [true, "Task title is required"],
       trim: true,
-      maxlength: 180,
+      maxlength: 160,
     },
-    detail: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: 300,
-    },
-    dueAt: {
-      type: Date,
-      default: null,
-    },
+    detail: { type: String, default: "Personal task", trim: true },
+    dueDate: { type: Date, default: null },
+    completed: { type: Boolean, default: false },
+    completedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
-
-taskSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Task", taskSchema);

@@ -2,117 +2,162 @@ const FlashcardSet = require("../models/FlashcardSet");
 const Material = require("../models/Material");
 const Category = require("../models/Category");
 const Progress = require("../models/Progress");
+const User = require("../models/User");
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
-const makeSampleCards = (title, difficulty, count) => {
-  const safeCount = Math.max(1, Math.min(Number(count) || 10, 30));
-  return Array.from({ length: safeCount }).map((_, index) => ({
-    question: `Question ${index + 1}: What is an important concept from ${title}?`,
-    answer: `Answer ${index + 1}: This card should be generated from the uploaded material. Replace this placeholder with real AI output later.`,
-    difficulty: difficulty || "Medium",
-  }));
+const makeFallbackCards = ({ material, category, difficulty, count }) => {
+  const safeCount = Math.max(1, Math.min(Number(count) || 5, 30));
+  const source = material.title;
+  const subject = category.name;
+  const description = material.description || `${material.fileType} study material`;
+  const templates = [
+    [
+      `What is the main topic of ${source}?`,
+      `${source} is a ${description.toLowerCase()} for ${subject}. Review the material and state its central idea in your own words.`,
+    ],
+    [
+      `Which key definition should you remember from ${source}?`,
+      `Identify the most important definition in ${source}, then connect it to an example from ${subject}.`,
+    ],
+    [
+      `How can you summarize ${source} in one sentence?`,
+      `State the main idea, one supporting detail, and why it matters in ${subject}.`,
+    ],
+    [
+      `What question should you ask while reviewing ${source}?`,
+      `Ask what the concept means, how it works, and when it should be applied.`,
+    ],
+    [
+      `Give one practical use of the ideas in ${source}.`,
+      `Apply one key concept from the material to a problem, diagram, example, or real situation.`,
+    ],
+  ];
+
+  return Array.from({ length: safeCount }, (_, index) => {
+    const [question, answer] = templates[index % templates.length];
+    return {
+      question: safeCount > templates.length ? `${question} (${index + 1})` : question,
+      answer,
+      difficulty: difficulty || "Medium",
+    };
+  });
 };
 
 exports.getFlashcardSets = async (req, res) => {
   const sets = await FlashcardSet.find({ userId: req.user._id })
     .populate("materialId", "title fileType")
-    .populate("categoryId", "name color")
+    .populate("categoryId", "name color soft emoji")
     .sort({ createdAt: -1 });
 
-  res.json(sets);
+  return res.json(sets);
 };
 
 exports.generateFlashcards = async (req, res) => {
   const { materialId, categoryId, difficulty, cardsPerTopic } = req.body;
 
-  let title = "Generated Flashcards";
-  let material = null;
-  let category = null;
-
-  if (materialId) {
-    material = await Material.findOne({ _id: materialId, userId: req.user._id });
-    if (!material) return res.status(404).json({ message: "Material not found" });
-    title = material.title.replace(/\.[^/.]+$/, "");
+  if (!materialId || !categoryId) {
+    return res.status(400).json({
+      message: "Material and category are required for flashcard generation",
+    });
   }
 
-  if (categoryId) {
-    category = await Category.findOne({ _id: categoryId, userId: req.user._id });
-    if (!category) return res.status(404).json({ message: "Category not found" });
-    title = `${category.name} - ${title}`;
+  const [material, category] = await Promise.all([
+    Material.findOne({ _id: materialId, userId: req.user._id }),
+    Category.findOne({ _id: categoryId, userId: req.user._id }),
+  ]);
+
+  if (!material) return res.status(404).json({ message: "Material not found" });
+  if (!category) return res.status(404).json({ message: "Category not found" });
+
+  if (material.categoryId && String(material.categoryId) !== String(category._id)) {
+    return res.status(400).json({ message: "The selected material is not in this category" });
   }
 
   const set = await FlashcardSet.create({
     userId: req.user._id,
-    materialId: material?._id || null,
-    categoryId: category?._id || null,
-    title,
-    cards: makeSampleCards(title, difficulty, cardsPerTopic),
+    materialId: material._id,
+    categoryId: category._id,
+    title: `${category.name} - ${material.title.replace(/\.[^/.]+$/, "")}`,
+    sourceType: "ai",
+    generationMode: "template",
+    cards: makeFallbackCards({
+      material,
+      category,
+      difficulty,
+      count: cardsPerTopic,
+    }),
   });
 
-  res.status(201).json(set);
+  await User.findByIdAndUpdate(req.user._id, {
+    $inc: { "studyData.flashcardsCreated": set.cards.length },
+  });
+
+  await set.populate([
+    { path: "materialId", select: "title fileType" },
+    { path: "categoryId", select: "name color soft emoji" },
+  ]);
+
+  return res.status(201).json({
+    ...set.toObject(),
+    generationMode: "template",
+    message: "Flashcards created with the local AI-ready fallback generator",
+  });
 };
 
 exports.createManualFlashcard = async (req, res) => {
-  try {
-    const { categoryId, question, answer } = req.body;
+  const { categoryId, question, answer, title } = req.body;
 
-    if (!categoryId || !question?.trim() || !answer?.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Category, question, and answer are required",
-      });
-    }
-
-    const category = await Category.findOne({
-      _id: categoryId,
-      userId: req.user._id,
+  if (!categoryId || !String(question || "").trim() || !String(answer || "").trim()) {
+    return res.status(400).json({
+      message: "Category, question and answer are required",
     });
-
-    if (!category) {
-      return res.status(404).json({ success: false, message: "Category not found" });
-    }
-
-    let set = await FlashcardSet.findOne({
-      userId: req.user._id,
-      categoryId,
-      sourceType: "manual",
-    });
-
-    if (!set) {
-      set = await FlashcardSet.create({
-        userId: req.user._id,
-        categoryId,
-        title: `${category.name} manual cards`,
-        sourceType: "manual",
-        cards: [],
-      });
-    }
-
-    set.cards.push({
-      question: question.trim(),
-      answer: answer.trim(),
-      known: false,
-    });
-
-    await set.save();
-    return res.status(201).json({ success: true, data: set });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
   }
+
+  const category = await Category.findOne({
+    _id: categoryId,
+    userId: req.user._id,
+  });
+  if (!category) return res.status(404).json({ message: "Category not found" });
+
+  const set = await FlashcardSet.create({
+    userId: req.user._id,
+    categoryId: category._id,
+    materialId: null,
+    title: title || `${category.name} Manual Card`,
+    sourceType: "manual",
+    generationMode: "manual",
+    cards: [{
+      question: String(question).trim(),
+      answer: String(answer).trim(),
+      difficulty: "Medium",
+    }],
+  });
+
+  await User.findByIdAndUpdate(req.user._id, {
+    $inc: { "studyData.flashcardsCreated": 1 },
+  });
+
+  await set.populate("categoryId", "name color soft emoji");
+  return res.status(201).json(set);
 };
 
 exports.updateCardReview = async (req, res) => {
   const { cardId, result } = req.body;
+  const set = await FlashcardSet.findOne({
+    _id: req.params.setId,
+    userId: req.user._id,
+  });
 
-  const set = await FlashcardSet.findOne({ _id: req.params.setId, userId: req.user._id });
   if (!set) return res.status(404).json({ message: "Flashcard set not found" });
 
   const card = set.cards.id(cardId);
   if (!card) return res.status(404).json({ message: "Card not found" });
 
+  const correct = result === "correct" || result === "known" || result === true;
   card.reviewed = true;
-  card.correct = result === "correct" || result === "known" || result === true;
+  card.correct = correct;
+  card.lastReviewedAt = new Date();
   await set.save();
 
   const progress = await Progress.findOneAndUpdate(
@@ -120,7 +165,7 @@ exports.updateCardReview = async (req, res) => {
     {
       $inc: {
         cardsReviewed: 1,
-        correctCards: card.correct ? 1 : 0,
+        correctCards: correct ? 1 : 0,
       },
       $setOnInsert: {
         totalTasks: 0,
@@ -129,14 +174,18 @@ exports.updateCardReview = async (req, res) => {
         focusMinutes: 0,
       },
     },
-    { new: true, upsert: true }
+    { new: true, upsert: true },
   );
 
-  res.json({ set, progress });
+  return res.json({ set, progress });
 };
 
 exports.deleteFlashcardSet = async (req, res) => {
-  const set = await FlashcardSet.findOneAndDelete({ _id: req.params.setId, userId: req.user._id });
+  const set = await FlashcardSet.findOneAndDelete({
+    _id: req.params.setId,
+    userId: req.user._id,
+  });
+
   if (!set) return res.status(404).json({ message: "Flashcard set not found" });
-  res.json({ message: "Flashcard set deleted" });
+  return res.json({ message: "Flashcard set deleted" });
 };

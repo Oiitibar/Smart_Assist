@@ -2,13 +2,14 @@ const mongoose = require("mongoose");
 
 const cardSchema = new mongoose.Schema(
   {
-    question: { type: String, required: true },
-    answer: { type: String, required: true },
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, required: true, trim: true },
     difficulty: { type: String, default: "Medium" },
     reviewed: { type: Boolean, default: false },
     correct: { type: Boolean, default: false },
+    lastReviewedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const flashcardSetSchema = new mongoose.Schema(
@@ -27,16 +28,23 @@ const flashcardSetSchema = new mongoose.Schema(
     categoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      default: null,
-    },
-    title: {
-      type: String,
       required: true,
-      trim: true,
+      index: true,
+    },
+    title: { type: String, required: true, trim: true },
+    sourceType: {
+      type: String,
+      enum: ["ai", "manual"],
+      default: "ai",
+    },
+    generationMode: {
+      type: String,
+      enum: ["template", "provider", "manual"],
+      default: "template",
     },
     cards: [cardSchema],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("FlashcardSet", flashcardSetSchema);

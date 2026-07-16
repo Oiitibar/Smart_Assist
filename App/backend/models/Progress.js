@@ -8,10 +8,7 @@ const progressSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    date: {
-      type: String,
-      required: true,
-    },
+    date: { type: String, required: true },
     tasksCompleted: { type: Number, default: 0 },
     totalTasks: { type: Number, default: 0 },
     cardsReviewed: { type: Number, default: 0 },
@@ -19,7 +16,7 @@ const progressSchema = new mongoose.Schema(
     studyStreak: { type: Number, default: 0 },
     focusMinutes: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 progressSchema.index({ userId: 1, date: 1 }, { unique: true });

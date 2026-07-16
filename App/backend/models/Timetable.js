@@ -16,11 +16,16 @@ const timetableSchema = new mongoose.Schema(
     },
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },
-    room: { type: String, default: "" },
-    teacher: { type: String, default: "" },
-    color: { type: String, default: "indigo" },
+    room: { type: String, default: "", trim: true },
+    teacher: { type: String, default: "", trim: true },
+    type: {
+      type: String,
+      enum: ["Lecture", "Lab", "Seminar", "Study", "Other"],
+      default: "Lecture",
+    },
+    color: { type: String, default: "#4f46e5" },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Timetable", timetableSchema);

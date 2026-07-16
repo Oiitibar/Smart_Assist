@@ -1,18 +1,15 @@
 const express = require("express");
 const protect = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware");
-const {
-  getMaterials,
-  uploadMaterial,
-  assignMaterialCategory,
-  deleteMaterial,
-} = require("../controllers/materialController");
+const asyncHandler = require("../middleware/asyncHandler");
+const uploadMiddleware = require("../middleware/uploadMiddleware");
+const controller = require("../controllers/materialController");
 
 const router = express.Router();
+const materialUpload = uploadMiddleware.materialUpload || uploadMiddleware;
 
-router.get("/", protect, getMaterials);
-router.post("/upload", protect, upload.single("file"), uploadMaterial);
-router.put("/:id/category", protect, assignMaterialCategory);
-router.delete("/:id", protect, deleteMaterial);
+router.get("/", protect, asyncHandler(controller.getMaterials));
+router.post("/upload", protect, materialUpload.single("file"), asyncHandler(controller.uploadMaterial));
+router.put("/:id/category", protect, asyncHandler(controller.assignMaterialCategory));
+router.delete("/:id", protect, asyncHandler(controller.deleteMaterial));
 
 module.exports = router;

@@ -27,6 +27,7 @@ export default function FlashcardPage({
   flashcards,
   onAddFlashcard,
   onGenerateFlashcards,
+  onReviewFlashcard,
   onNavigate,
 }) {
   const [selectedId, setSelectedId] = useState(categories[0]?.id || "");
@@ -39,6 +40,8 @@ export default function FlashcardPage({
   const [flipped, setFlipped] = useState(false);
   const [mastered, setMastered] = useState([]);
   const [generating, setGenerating] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
+  const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
     if (!categories.some((item) => item.id === selectedId)) setSelectedId(categories[0]?.id || "");
@@ -55,9 +58,12 @@ export default function FlashcardPage({
   useEffect(() => {
     setIndex(0);
     setFlipped(false);
-    setMastered([]);
     setSelectedMaterialId(categoryMaterials[0]?.id || "");
   }, [selectedId]);
+
+  useEffect(() => {
+    setMastered(cards.filter((card) => card.reviewed && card.correct).map((card) => card.id));
+  }, [selectedId, cards]);
 
   useEffect(() => {
     if (!categoryMaterials.some((item) => item.id === selectedMaterialId)) {
@@ -71,19 +77,22 @@ export default function FlashcardPage({
     setFlipped(false);
   };
 
-  const submitManual = (event) => {
+  const submitManual = async (event) => {
     event.preventDefault();
-    if (!selectedId || !question.trim() || !answer.trim()) return;
-    onAddFlashcard(selectedId, {
-      id: crypto.randomUUID(),
-      question: question.trim(),
-      answer: answer.trim(),
-      source: "Manual",
-      createdAt: new Date().toISOString(),
-    });
-    setQuestion("");
-    setAnswer("");
-    setShowManual(false);
+    if (!selectedId || !question.trim() || !answer.trim() || savingManual) return;
+    setSavingManual(true);
+    try {
+      await onAddFlashcard(selectedId, {
+        question: question.trim(),
+        answer: answer.trim(),
+        source: "Manual",
+      });
+      setQuestion("");
+      setAnswer("");
+      setShowManual(false);
+    } finally {
+      setSavingManual(false);
+    }
   };
 
   const generate = async () => {
@@ -110,7 +119,21 @@ export default function FlashcardPage({
     );
   }
 
-  const currentMastered = current ? mastered.includes(current.id) : false;
+  const currentMastered = current ? (current.reviewed && current.correct) || mastered.includes(current.id) : false;
+
+  const toggleKnown = async () => {
+    if (!current || savingReview) return;
+    const nextKnown = !currentMastered;
+    setSavingReview(true);
+    setMastered((items) => nextKnown
+      ? [...new Set([...items, current.id])]
+      : items.filter((id) => id !== current.id));
+    try {
+      await onReviewFlashcard?.(current, nextKnown);
+    } finally {
+      setSavingReview(false);
+    }
+  };
 
   return (
     <div className={pageClass}>
@@ -242,9 +265,10 @@ export default function FlashcardPage({
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300"
                       : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                   }`}
-                  onClick={() => current && setMastered((items) => items.includes(current.id) ? items.filter((id) => id !== current.id) : [...items, current.id])}
+                  onClick={toggleKnown}
+                  disabled={savingReview}
                 >
-                  <Check size={17} /> {currentMastered ? "Mastered" : "Mark as known"}
+                  <Check size={17} /> {savingReview ? "Saving..." : currentMastered ? "Mastered" : "Mark as known"}
                 </button>
                 <button className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" onClick={() => move(1)} aria-label="Next card">
                   <ArrowRight size={20} />
@@ -305,7 +329,7 @@ export default function FlashcardPage({
             </label>
             <div className="flex justify-end gap-2">
               <button type="button" className={secondaryButtonClass} onClick={() => setShowManual(false)}>Cancel</button>
-              <button className={primaryButtonClass} type="submit"><Plus size={17} /> Add card</button>
+              <button className={primaryButtonClass} type="submit" disabled={savingManual}><Plus size={17} /> {savingManual ? "Saving..." : "Add card"}</button>
             </div>
           </form>
         </Modal>

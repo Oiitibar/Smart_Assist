@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -27,10 +27,13 @@ import {
   selectClass,
 } from "./ui";
 
-export default function SettingPage({ user, profile, settings, onSaveProfile, onSaveSettings }) {
+export default function SettingPage({ user, profile, settings, onSaveProfile, onSaveSettings, onUploadAvatar }) {
   const [draftProfile, setDraftProfile] = useState(profile);
   const [draftSettings, setDraftSettings] = useState(settings);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => setDraftProfile(profile), [profile]);
   useEffect(() => setDraftSettings(settings), [settings]);
@@ -38,14 +41,31 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
   const updateSetting = (key, value) => {
     const next = { ...draftSettings, [key]: value };
     setDraftSettings(next);
-    if (key === "darkMode") onSaveSettings(next);
+    if (key === "darkMode") onSaveSettings(next, true).catch(() => {});
   };
 
-  const save = () => {
-    onSaveProfile(draftProfile);
-    onSaveSettings(draftSettings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1600);
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSaveProfile(draftProfile);
+      await onSaveSettings(draftSettings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1600);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadAvatar = async (file) => {
+    if (!file || uploadingAvatar) return;
+    setUploadingAvatar(true);
+    try {
+      await onUploadAvatar?.(file);
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
   };
 
   const initials = (draftProfile.fullName || user?.name || user?.fullName || "Student")
@@ -62,8 +82,8 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
         title="Settings"
         description="Manage your profile and study preferences. These values are stored separately for each signed-in user."
         action={
-          <button className={primaryButtonClass} onClick={save}>
-            {saved ? <Check size={17} /> : <Save size={17} />} {saved ? "Saved" : "Save changes"}
+          <button className={primaryButtonClass} onClick={save} disabled={saving}>
+            {saved ? <Check size={17} /> : <Save size={17} />} {saving ? "Saving..." : saved ? "Saved" : "Save changes"}
           </button>
         }
       />
@@ -81,13 +101,30 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
           </div>
 
           <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <span className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl font-bold text-white shadow-sm">
-              {initials}
-            </span>
+            {user?.avatarUrl ? (
+              <img
+                src={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${user.avatarUrl}`}
+                alt="Profile"
+                className="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-sm"
+              />
+            ) : (
+              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl font-bold text-white shadow-sm">
+                {initials}
+              </span>
+            )}
             <div>
               <strong className="text-sm text-slate-900 dark:text-white">Profile photo</strong>
-              <p className="mt-1 text-xs text-slate-400">JPG or PNG, maximum 2 MB.</p>
-              <button className={`${secondaryButtonClass} mt-2`}><Camera size={16} /> Change photo</button>
+              <p className="mt-1 text-xs text-slate-400">JPG, PNG or WEBP, maximum 2 MB.</p>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                className="hidden"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => uploadAvatar(event.target.files?.[0])}
+              />
+              <button type="button" className={`${secondaryButtonClass} mt-2`} onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}>
+                <Camera size={16} /> {uploadingAvatar ? "Uploading..." : "Change photo"}
+              </button>
             </div>
           </div>
 
@@ -103,6 +140,15 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
             <label className={`${labelClass} sm:col-span-2`}>
               Email address
               <input className={inputClass} type="email" value={draftProfile.email || user?.email || ""} readOnly />
+            </label>
+            <label className={`${labelClass} sm:col-span-2`}>
+              Phone number
+              <input
+                className={inputClass}
+                value={draftProfile.phone || ""}
+                onChange={(event) => setDraftProfile({ ...draftProfile, phone: event.target.value })}
+                placeholder="Your phone number"
+              />
             </label>
             <label className={labelClass}>
               School or institution
@@ -122,7 +168,7 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
                 placeholder="e.g. Year 2"
               />
             </label>
-            <label className={`${labelClass} sm:col-span-2`}>
+            {/* <label className={`${labelClass} sm:col-span-2`}>
               Subjects
               <input
                 className={inputClass}
@@ -130,7 +176,7 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
                 onChange={(event) => setDraftProfile({ ...draftProfile, subjects: event.target.value })}
                 placeholder="Mathematics, Physics, English"
               />
-            </label>
+            </label> */}
           </div>
         </article>
 
@@ -158,7 +204,7 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
               </button>
             </PreferenceRow>
 
-            <PreferenceRow icon={Bell} title="Notifications" detail="Receive class and flashcard reminders">
+            {/* <PreferenceRow icon={Bell} title="Notifications" detail="Receive class and flashcard reminders">
               <button
                 type="button"
                 onClick={() => updateSetting("notifications", !draftSettings.notifications)}
@@ -168,16 +214,16 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
               >
                 <i className={`block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${draftSettings.notifications ? "translate-x-5" : ""}`} />
               </button>
-            </PreferenceRow>
+            </PreferenceRow> */}
 
-            <PreferenceRow icon={Clock3} title="Study reminder" detail="When the app should remind you">
+            {/* <PreferenceRow icon={Clock3} title="Study reminder" detail="When the app should remind you">
               <select className={`${selectClass} w-full sm:w-48`} value={draftSettings.studyReminder} onChange={(event) => updateSetting("studyReminder", event.target.value)}>
                 <option>10 minutes before</option>
                 <option>15 minutes before</option>
                 <option>30 minutes before</option>
                 <option>1 hour before</option>
               </select>
-            </PreferenceRow>
+            </PreferenceRow> */}
 
             <PreferenceRow icon={Globe2} title="Language" detail="Default application language">
               <select className={`${selectClass} w-full sm:w-48`} value={draftSettings.language} onChange={(event) => updateSetting("language", event.target.value)}>

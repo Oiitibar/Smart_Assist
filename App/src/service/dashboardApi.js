@@ -1,6 +1,9 @@
-import api, { unwrap } from "./axios";
+import { plannerApi } from "./plannerApi";
 
-export const getDashboardSummary = async () => {
-  const response = await api.get("/dashboard/summary");
-  return unwrap(response);
+export const getDashboardSummary = () => plannerApi.getDashboardSummary();
+
+export const dashboardApi = {
+  getDashboardSummary,
 };
+
+export default dashboardApi;

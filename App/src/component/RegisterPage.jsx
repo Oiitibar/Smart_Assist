@@ -325,7 +325,7 @@ export default function RegisterPage() {
 
         {/* Back to home */}
         <button
-          onClick={() => navigate("/Smart_Assist/")}
+          onClick={() => navigate("/")}
           className="mt-6 mx-auto flex items-center gap-1.5 text-white/25 hover:text-white/50 text-xs transition-colors"
         >
           <svg

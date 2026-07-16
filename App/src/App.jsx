@@ -7,7 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 
-import HomePage from "./pages/Home";
+import HomePage from "./component/Home/HomePage";
 import LoginPage from "./component/LoginPage";
 import RegisterPage from "./component/RegisterPage";
 import DashboardPage from "./component/Dashboard/DashboardPage";
@@ -65,7 +65,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/Smart_Assist/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/Smart_Assist/Login" element={<LoginPage />} />
         <Route path="/Smart_Assist/Register" element={<RegisterPage />} />
 

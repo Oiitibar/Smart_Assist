@@ -1,0 +1,10 @@
+export { default } from "./HomePage";
+export { default as HomePage } from "./HomePage";
+export { default as HomeHeader } from "./components/HomeHeader";
+export { default as HeroSection } from "./components/HeroSection";
+export { default as FeaturesSection } from "./components/FeaturesSection";
+export { default as HowItWorksSection } from "./components/HowItWorksSection";
+export { default as AIFlashcardsSection } from "./components/AIFlashcardsSection";
+export { default as AboutSection } from "./components/AboutSection";
+export { default as FinalCTASection } from "./components/FinalCTASection";
+export { default as HomeFooter } from "./components/HomeFooter";

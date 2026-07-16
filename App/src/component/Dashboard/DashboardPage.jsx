@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentUser, logoutUser } from "../../service/auth";
+import { plannerApi } from "../../service/plannerApi";
 import DashboardHome from "./DashboardHome";
 import FlashcardPage from "./FlashcardPage";
 import MaterialPage from "./MaterialPage";
@@ -7,69 +8,6 @@ import SettingPage from "./SettingPage";
 import Sidebar from "./Sidebar";
 import TimetablePage from "./TimetablePage";
 import Topbar from "./Topbar";
-
-const demoUser = { id: "demo-user", name: "Alex Morgan", fullName: "Alex Morgan", email: "alex@student.edu" };
-
-const initialCategories = [
-  { id: "ict", name: "ICT", color: "#4f46e5", soft: "#eef2ff", emoji: "💻" },
-  { id: "mathematics", name: "Mathematics", color: "#8b5cf6", soft: "#f5f3ff", emoji: "📐" },
-  { id: "physics", name: "Physics", color: "#0ea5e9", soft: "#f0f9ff", emoji: "⚛️" },
-  { id: "biology", name: "Biology", color: "#10b981", soft: "#ecfdf5", emoji: "🧬" },
-];
-
-const initialMaterials = [
-  { id: "m1", title: "Data Structures Notes.pdf", originalName: "Data Structures Notes.pdf", categoryId: "ict", type: "PDF", detail: "PDF · 2.4 MB", size: 2516582, updated: "Today", filePath: "uploads/data-structures-notes.pdf" },
-  { id: "m2", title: "Calculus Integration.pptx", originalName: "Calculus Integration.pptx", categoryId: "mathematics", type: "PPTX", detail: "PPTX · 4.1 MB", size: 4299161, updated: "Yesterday", filePath: "uploads/calculus-integration.pptx" },
-  { id: "m3", title: "Physics Formula Sheet.pdf", originalName: "Physics Formula Sheet.pdf", categoryId: "physics", type: "PDF", detail: "PDF · 1.2 MB", size: 1258291, updated: "Jul 10", filePath: "uploads/physics-formulas.pdf" },
-  { id: "m4", title: "Cell Structure Diagram.png", originalName: "Cell Structure Diagram.png", categoryId: "biology", type: "PNG", detail: "PNG · 860 KB", size: 880640, updated: "Jul 9", filePath: "uploads/cell-structure.png" },
-];
-
-const initialFlashcards = {
-  ict: [
-    { id: "f1", question: "What is a data structure?", answer: "A data structure is a way of organizing and storing data so it can be accessed and modified efficiently.", source: "Data Structures Notes.pdf" },
-    { id: "f2", question: "What is the main difference between an array and a linked list?", answer: "Arrays use contiguous memory and indexed access, while linked lists use connected nodes and sequential access.", source: "Data Structures Notes.pdf" },
-  ],
-  mathematics: [
-    { id: "f3", question: "What is integration by parts?", answer: "It is the rule ∫u dv = uv − ∫v du.", source: "Calculus Integration.pptx" },
-  ],
-  physics: [
-    { id: "f4", question: "State Newton’s second law.", answer: "The resultant force equals mass multiplied by acceleration: F = ma.", source: "Physics Formula Sheet.pdf" },
-  ],
-  biology: [],
-};
-
-const initialSchedules = [
-  { id: "s1", title: "ICT", day: "Mon", start: "10:30 AM", end: "11:30 AM", room: "Computer Lab", teacher: "Mr. Davis", type: "Lecture", color: "#4f46e5" },
-  { id: "s2", title: "Mathematics", day: "Mon", start: "12:00 PM", end: "01:00 PM", room: "Room 203", teacher: "Ms. Brown", type: "Lecture", color: "#8b5cf6" },
-  { id: "s3", title: "Physics", day: "Mon", start: "02:00 PM", end: "03:00 PM", room: "Lab 1", teacher: "Dr. Chen", type: "Lab", color: "#0ea5e9" },
-  { id: "s4", title: "Biology", day: "Tue", start: "09:00 AM", end: "10:30 AM", room: "Bio Lab", teacher: "Dr. Patel", type: "Lab", color: "#10b981" },
-  { id: "s5", title: "Data Structures", day: "Wed", start: "10:00 AM", end: "11:30 AM", room: "Room 201", teacher: "Mr. Davis", type: "Lecture", color: "#4f46e5" },
-  { id: "s6", title: "Calculus", day: "Thu", start: "01:00 PM", end: "02:30 PM", room: "Room 204", teacher: "Ms. Brown", type: "Lecture", color: "#8b5cf6" },
-  { id: "s7", title: "Physics Review", day: "Fri", start: "11:00 AM", end: "12:00 PM", room: "Library", teacher: "Study group", type: "Study", color: "#0ea5e9" },
-];
-
-const initialTasks = [
-  { id: "t1", title: "Review ICT flashcards", detail: "Before the next class" },
-  { id: "t2", title: "Upload biology notes", detail: "Personal task" },
-  { id: "t3", title: "Finish mathematics exercises", detail: "Due today" },
-];
-
-const initialProfile = {
-  fullName: "Alex Morgan",
-  email: "alex@student.edu",
-  school: "City University",
-  grade: "Computer Science · Year 2",
-  subjects: "ICT, Mathematics, Physics, Biology",
-};
-
-const initialSettings = {
-  darkMode: localStorage.getItem("theme") === "dark",
-  notifications: true,
-  studyReminder: "30 minutes before",
-  language: "English",
-  timetableView: "Week View",
-  flashcardMode: "Review All",
-};
 
 const titles = {
   dashboard: "Dashboard",
@@ -79,50 +17,174 @@ const titles = {
   setting: "Settings",
 };
 
-function readStorage(key, initialValue) {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored === null ? initialValue : JSON.parse(stored);
-  } catch {
-    return initialValue;
-  }
+const dayToShort = {
+  Monday: "Mon",
+  Tuesday: "Tue",
+  Wednesday: "Wed",
+  Thursday: "Thu",
+  Friday: "Fri",
+  Saturday: "Sat",
+  Sunday: "Sun",
+};
+
+const shortToDay = Object.fromEntries(
+  Object.entries(dayToShort).map(([longDay, shortDay]) => [shortDay, longDay]),
+);
+
+const defaultSettings = {
+  darkMode: localStorage.getItem("smart-assist-theme") === "dark",
+  notifications: true,
+  studyReminder: "30 minutes before",
+  language: "English",
+  timetableView: "Week View",
+  flashcardMode: "Review All",
+};
+
+const defaultProfile = {
+  fullName: "",
+  email: "",
+  phone: "",
+  school: "",
+  grade: "",
+  subjects: "",
+};
+
+const paletteFallback = [
+  ["#4f46e5", "#eef2ff", "📘"],
+  ["#8b5cf6", "#f5f3ff", "📐"],
+  ["#0ea5e9", "#f0f9ff", "⚛️"],
+  ["#10b981", "#ecfdf5", "🧬"],
+];
+
+function getId(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return value._id || value.id || "";
 }
 
-function useUserStoredState(scope, key, initialValue) {
-  const storageKey = `smart-assist:${scope}:${key}`;
-  const [state, setState] = useState(() => ({ key: storageKey, value: readStorage(storageKey, initialValue) }));
+function formatUpdated(value) {
+  if (!value) return "Recently";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return "Today";
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
-  useEffect(() => {
-    if (state.key !== storageKey) {
-      setState({ key: storageKey, value: readStorage(storageKey, initialValue) });
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (state.key === storageKey) {
-      localStorage.setItem(storageKey, JSON.stringify(state.value));
-    }
-  }, [state, storageKey]);
-
-  const currentValue = state.key === storageKey ? state.value : readStorage(storageKey, initialValue);
-  const setValue = (nextValue) => {
-    setState((previous) => {
-      const base = previous.key === storageKey ? previous.value : readStorage(storageKey, initialValue);
-      return {
-        key: storageKey,
-        value: typeof nextValue === "function" ? nextValue(base) : nextValue,
-      };
-    });
-  };
-
-  return [currentValue, setValue];
+function readableSize(bytes) {
+  if (!bytes) return "Unknown size";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function normalizeUser(response) {
   const candidate = response?.data?.user || response?.user || response?.data || response;
-  if (!candidate || typeof candidate !== "object") return demoUser;
+  if (!candidate || typeof candidate !== "object") return null;
   const name = candidate.name || candidate.fullName || "Student";
-  return { ...candidate, name, fullName: candidate.fullName || name };
+  return {
+    ...candidate,
+    id: getId(candidate),
+    name,
+    fullName: candidate.fullName || name,
+  };
+}
+
+function normalizeCategory(category, index = 0) {
+  const fallback = paletteFallback[index % paletteFallback.length];
+  const color = category.color?.startsWith("#") ? category.color : fallback[0];
+  return {
+    ...category,
+    id: getId(category),
+    name: category.name || "Untitled category",
+    color,
+    soft: category.soft || `${color}18`,
+    emoji: category.emoji || fallback[2],
+  };
+}
+
+function normalizeMaterial(material) {
+  const categoryId = getId(material.categoryId);
+  const type = material.fileType || material.type || "FILE";
+  return {
+    ...material,
+    id: getId(material),
+    categoryId,
+    type,
+    title: material.title || material.originalName || "Untitled material",
+    detail: material.description || `${type} · ${readableSize(material.size)}`,
+    updated: formatUpdated(material.updatedAt || material.createdAt),
+    filePath: material.fileUrl || material.filePath || "",
+  };
+}
+
+function normalizeSchedule(item) {
+  return {
+    ...item,
+    id: getId(item),
+    title: item.subject || item.title || "Untitled class",
+    day: dayToShort[item.day] || item.day,
+    start: item.startTime || item.start,
+    end: item.endTime || item.end,
+    room: item.room || "Room TBA",
+    teacher: item.teacher || "Instructor TBA",
+    type: item.type || "Lecture",
+    color: item.color?.startsWith("#") ? item.color : "#4f46e5",
+  };
+}
+
+function normalizeTask(task) {
+  return {
+    ...task,
+    id: getId(task),
+    title: task.title || "Untitled task",
+    detail: task.detail || "Personal task",
+  };
+}
+
+function normalizeFlashcards(sets) {
+  return (sets || []).reduce((grouped, set) => {
+    const categoryId = getId(set.categoryId);
+    if (!categoryId) return grouped;
+    const materialTitle = set.materialId?.title || set.sourceTitle || set.title || "Manual";
+    const normalizedCards = (set.cards || []).map((card) => ({
+      ...card,
+      id: getId(card),
+      setId: getId(set),
+      source: materialTitle,
+      reviewed: Boolean(card.reviewed),
+      correct: Boolean(card.correct),
+    }));
+    grouped[categoryId] = [...(grouped[categoryId] || []), ...normalizedCards];
+    return grouped;
+  }, {});
+}
+
+function profileFromUser(user) {
+  return {
+    fullName: user?.fullName || user?.name || "",
+    email: user?.email || "",
+    phone: user?.profile?.phone || "",
+    school: user?.profile?.school || "",
+    grade: user?.profile?.grade || "",
+    subjects: Array.isArray(user?.profile?.subjects)
+      ? user.profile.subjects.join(", ")
+      : user?.profile?.subjects || "",
+  };
+}
+
+function settingsFromUser(user) {
+  const preferences = user?.preferences || {};
+  return {
+    ...defaultSettings,
+    ...preferences,
+    darkMode:
+      typeof preferences.darkMode === "boolean"
+        ? preferences.darkMode
+        : preferences.theme === "dark" || defaultSettings.darkMode,
+  };
 }
 
 export default function DashboardPage() {
@@ -130,43 +192,79 @@ export default function DashboardPage() {
   const [activePage, setActivePage] = useState(titles[pageFromHash] ? pageFromHash : "dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [user, setUser] = useState(demoUser);
-  const scope = user?._id || user?.id || "demo-user";
+  const [user, setUser] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [flashcards, setFlashcards] = useState({});
+  const [schedules, setSchedules] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [profile, setProfile] = useState(defaultProfile);
+  const [settings, setSettings] = useState(defaultSettings);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
-  const [categories, setCategories] = useUserStoredState(scope, "categories", initialCategories);
-  const [materials, setMaterials] = useUserStoredState(scope, "materials", initialMaterials);
-  const [flashcards, setFlashcards] = useUserStoredState(scope, "flashcards", initialFlashcards);
-  const [schedules, setSchedules] = useUserStoredState(scope, "schedules", initialSchedules);
-  const [tasks, setTasks] = useUserStoredState(scope, "tasks", initialTasks);
-  const [profile, setProfile] = useUserStoredState(scope, "profile", initialProfile);
-  const [settings, setSettings] = useUserStoredState(scope, "settings", initialSettings);
+  const showError = useCallback((requestError, fallback) => {
+    const message = requestError?.response?.data?.message || requestError?.data?.message || requestError?.message || fallback;
+    setError(message);
+    setNotice("");
+    if (requestError?.response?.status === 401 || requestError?.status === 401) {
+      window.location.href = "/login";
+    }
+  }, []);
 
-  useEffect(() => {
-    getCurrentUser().then((response) => {
-      const nextUser = normalizeUser(response);
-      setUser(nextUser);
-      setProfile((current) => ({
-        ...current,
-        fullName: nextUser.fullName || nextUser.name || current.fullName,
-        email: nextUser.email || current.email,
-        school: nextUser.profile?.school || current.school,
-        grade: nextUser.profile?.grade || current.grade,
-        subjects: Array.isArray(nextUser.profile?.subjects) ? nextUser.profile.subjects.join(", ") : current.subjects,
-      }));
-      setSettings((current) => ({ ...current, ...(nextUser.preferences || {}) }));
-    }).catch(() => setUser(demoUser));
+  const showNotice = useCallback((message) => {
+    setNotice(message);
+    setError("");
+    window.clearTimeout(window.__smartAssistNoticeTimer);
+    window.__smartAssistNoticeTimer = window.setTimeout(() => setNotice(""), 2200);
+  }, []);
+
+  const loadWorkspace = useCallback(async () => {
+    const [categoryData, materialData, timetableData, flashcardData, taskData] = await Promise.all([
+      plannerApi.getCategories(),
+      plannerApi.getMaterials(),
+      plannerApi.getTimetable(),
+      plannerApi.getFlashcards(),
+      plannerApi.getTasks(),
+    ]);
+
+    setCategories((categoryData || []).map(normalizeCategory));
+    setMaterials((materialData || []).map(normalizeMaterial));
+    setSchedules((timetableData || []).map(normalizeSchedule));
+    setFlashcards(normalizeFlashcards(flashcardData));
+    setTasks((taskData || []).map(normalizeTask));
   }, []);
 
   useEffect(() => {
-  const isDark = Boolean(settings.darkMode);
+    let active = true;
+    const initialize = async () => {
+      try {
+        const userResponse = await getCurrentUser();
+        const currentUser = normalizeUser(userResponse);
+        if (!currentUser) throw new Error("Could not load your account");
+        if (!active) return;
+        setUser(currentUser);
+        setProfile(profileFromUser(currentUser));
+        setSettings(settingsFromUser(currentUser));
+        await loadWorkspace();
+      } catch (requestError) {
+        if (active) showError(requestError, "Could not load your workspace");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
 
-  document.documentElement.classList.toggle("dark", isDark);
+    initialize();
+    return () => {
+      active = false;
+    };
+  }, [loadWorkspace, showError]);
 
-  localStorage.setItem(
-    "theme",
-    isDark ? "dark" : "light"
-  );
-}, [settings.darkMode]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", Boolean(settings.darkMode));
+    localStorage.setItem("smart-assist-theme", settings.darkMode ? "dark" : "light");
+  }, [settings.darkMode]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -183,81 +281,255 @@ export default function DashboardPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const addCategory = (category) => {
-    setCategories((value) => [...value, category]);
-    setFlashcards((value) => ({ ...value, [category.id]: [] }));
+  const addCategory = async (category) => {
+    try {
+      const created = await plannerApi.createCategory(category);
+      const normalized = normalizeCategory(created, categories.length);
+      setCategories((value) => [normalized, ...value]);
+      setFlashcards((value) => ({ ...value, [normalized.id]: value[normalized.id] || [] }));
+      showNotice("Category created");
+      return normalized;
+    } catch (requestError) {
+      showError(requestError, "Could not create category");
+      throw requestError;
+    }
   };
 
-  const addMaterial = (material) => setMaterials((value) => [material, ...value]);
-  const deleteMaterial = (id) => setMaterials((value) => value.filter((item) => item.id !== id));
-  const addSchedule = (item) => setSchedules((value) => [...value, item]);
-  const deleteSchedule = (id) => setSchedules((value) => value.filter((item) => item.id !== id));
-  const addTask = (task) => setTasks((value) => [task, ...value]);
-  const completeTask = (id) => {
-    setTimeout(() => setTasks((value) => value.filter((task) => task.id !== id)), 220);
+  const deleteCategory = async (id) => {
+    if (!window.confirm("Delete this category? Materials will become uncategorized.")) return;
+    try {
+      await plannerApi.deleteCategory(id);
+      setCategories((value) => value.filter((item) => item.id !== id));
+      setMaterials((value) => value.map((item) => item.categoryId === id ? { ...item, categoryId: "" } : item));
+      setFlashcards((value) => {
+        const next = { ...value };
+        delete next[id];
+        return next;
+      });
+      showNotice("Category deleted");
+    } catch (requestError) {
+      showError(requestError, "Could not delete category");
+    }
   };
 
-  const addFlashcard = (categoryId, card) => {
-    setFlashcards((value) => ({ ...value, [categoryId]: [...(value[categoryId] || []), card] }));
+  const addMaterial = async (payload) => {
+    try {
+      const created = await plannerApi.uploadMaterial(payload);
+      const normalized = normalizeMaterial(created);
+      setMaterials((value) => [normalized, ...value]);
+      showNotice("Material uploaded");
+      return normalized;
+    } catch (requestError) {
+      showError(requestError, "Could not upload material");
+      throw requestError;
+    }
   };
 
-  const generateFlashcards = (categoryId, materialId, count) => {
-    const material = materials.find((item) => item.id === materialId);
-    const category = categories.find((item) => item.id === categoryId);
-    if (!material || !category) return;
+  const deleteMaterial = async (id) => {
+    if (!window.confirm("Delete this material and its stored file?")) return;
+    try {
+      await plannerApi.deleteMaterial(id);
+      setMaterials((value) => value.filter((item) => item.id !== id));
+      await refreshFlashcards();
+      showNotice("Material deleted");
+    } catch (requestError) {
+      showError(requestError, "Could not delete material");
+    }
+  };
 
-    const templates = [
-      [
-        `What is the main topic of ${material.title}?`,
-        `${material.title} covers important ideas in ${category.name}. Review the source material for its key definition and examples.`,
-      ],
-      [
-        `Name one key concept to remember from ${material.title}.`,
-        `Identify the central ${category.name} concept, then connect it to the example provided in the material.`,
-      ],
-      [
-        `How would you summarize ${material.title} in one sentence?`,
-        `Summarize the main idea, the supporting detail, and why it matters in ${category.name}.`,
-      ],
-      [
-        `What question should you ask when reviewing ${material.title}?`,
-        `Ask what the concept means, how it works, and when it should be applied.`,
-      ],
-      [
-        `What is a practical use of the ideas in ${material.title}?`,
-        `Apply the main concept to a problem, example, diagram, or real situation from ${category.name}.`,
-      ],
-    ];
+  const addSchedule = async (item) => {
+    try {
+      const created = await plannerApi.createTimetable({
+        subject: item.title,
+        day: shortToDay[item.day] || item.day,
+        startTime: item.start,
+        endTime: item.end,
+        room: item.room,
+        teacher: item.teacher,
+        type: item.type,
+        color: item.color,
+      });
+      const normalized = normalizeSchedule(created);
+      setSchedules((value) => [...value, normalized]);
+      showNotice("Timetable entry added");
+      return normalized;
+    } catch (requestError) {
+      showError(requestError, "Could not add timetable entry");
+      throw requestError;
+    }
+  };
 
-    const generated = Array.from({ length: count }, (_, index) => {
-      const [question, answer] = templates[index % templates.length];
-      return {
-        id: crypto.randomUUID(),
-        question: count > templates.length ? `${question} (${index + 1})` : question,
-        answer,
-        source: material.title,
+  const deleteSchedule = async (id) => {
+    try {
+      await plannerApi.deleteTimetable(id);
+      setSchedules((value) => value.filter((item) => item.id !== id));
+      showNotice("Timetable entry deleted");
+    } catch (requestError) {
+      showError(requestError, "Could not delete timetable entry");
+    }
+  };
+
+  const addTask = async (task) => {
+    try {
+      const created = await plannerApi.createTask({ title: task.title, detail: task.detail });
+      const normalized = normalizeTask(created);
+      setTasks((value) => [normalized, ...value]);
+      showNotice("Task added");
+      return normalized;
+    } catch (requestError) {
+      showError(requestError, "Could not add task");
+      throw requestError;
+    }
+  };
+
+  const completeTask = async (id) => {
+    try {
+      await plannerApi.completeTask(id);
+      setTasks((value) => value.filter((task) => task.id !== id));
+      showNotice("Task completed");
+    } catch (requestError) {
+      showError(requestError, "Could not complete task");
+    }
+  };
+
+  const refreshFlashcards = async () => {
+    const sets = await plannerApi.getFlashcards();
+    setFlashcards(normalizeFlashcards(sets));
+  };
+
+  const addFlashcard = async (categoryId, card) => {
+    try {
+      await plannerApi.createManualFlashcard({
+        categoryId,
+        question: card.question,
+        answer: card.answer,
+      });
+      await refreshFlashcards();
+      showNotice("Manual flashcard created");
+    } catch (requestError) {
+      showError(requestError, "Could not create flashcard");
+      throw requestError;
+    }
+  };
+
+  const generateFlashcards = async (categoryId, materialId, count) => {
+    try {
+      const result = await plannerApi.generateFlashcards({
+        categoryId,
         materialId,
-        generatedBy: "AI",
-        createdAt: new Date().toISOString(),
-      };
-    });
+        cardsPerTopic: count,
+        difficulty: "Medium",
+      });
+      await refreshFlashcards();
+      showNotice(
+        result?.generationMode === "template"
+          ? "Cards generated with the local AI-ready fallback"
+          : "Flashcards generated",
+      );
+    } catch (requestError) {
+      showError(requestError, "Could not generate flashcards");
+      throw requestError;
+    }
+  };
 
-    setFlashcards((value) => ({ ...value, [categoryId]: [...(value[categoryId] || []), ...generated] }));
+  const reviewFlashcard = async (card, known) => {
+    if (!card?.setId || !card?.id) return;
+    try {
+      await plannerApi.reviewFlashcard(card.setId, {
+        cardId: card.id,
+        result: known ? "known" : "unknown",
+      });
+      setFlashcards((value) => {
+        const next = {};
+        for (const [categoryId, cards] of Object.entries(value)) {
+          next[categoryId] = cards.map((item) => item.id === card.id
+            ? { ...item, reviewed: true, correct: known }
+            : item);
+        }
+        return next;
+      });
+    } catch (requestError) {
+      showError(requestError, "Could not save review result");
+    }
+  };
+
+  const uploadAvatar = async (file) => {
+    try {
+      const response = await plannerApi.uploadAvatar(file);
+      const updatedUser = normalizeUser(response);
+      if (updatedUser) setUser(updatedUser);
+      showNotice("Profile photo updated");
+      return updatedUser;
+    } catch (requestError) {
+      showError(requestError, "Could not upload profile photo");
+      throw requestError;
+    }
+  };
+
+  const saveProfile = async (nextProfile) => {
+    try {
+      const response = await plannerApi.updateProfile({
+        fullName: nextProfile.fullName,
+        phone: nextProfile.phone || "",
+        school: nextProfile.school || "",
+        grade: nextProfile.grade || "",
+        subjects: String(nextProfile.subjects || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      });
+      const updatedUser = normalizeUser(response);
+      setProfile(profileFromUser(updatedUser || { ...user, ...response?.user }));
+      if (updatedUser) setUser(updatedUser);
+      showNotice("Profile saved");
+    } catch (requestError) {
+      showError(requestError, "Could not save profile");
+      throw requestError;
+    }
+  };
+
+  const saveSettings = async (nextSettings, silent = false) => {
+    const previous = settings;
+    setSettings(nextSettings);
+    try {
+      const response = await plannerApi.updatePreferences({
+        ...nextSettings,
+        theme: nextSettings.darkMode ? "dark" : "light",
+      });
+      const savedPreferences = response?.preferences || response;
+      setSettings((value) => ({ ...value, ...savedPreferences }));
+      if (!silent) showNotice("Preferences saved");
+    } catch (requestError) {
+      setSettings(previous);
+      showError(requestError, "Could not save preferences");
+      throw requestError;
+    }
+  };
+
+  const toggleTheme = () => {
+    const next = { ...settings, darkMode: !settings.darkMode };
+    saveSettings(next, true).catch(() => {});
   };
 
   const handleLogout = async () => {
     try {
       await logoutUser();
-    } catch {
-      // The local preview can still return to login when the backend is offline.
+    } finally {
+      window.location.href = "/Smart_Assist/login";
     }
-    window.location.href = "/login";
   };
 
   const page = useMemo(() => {
     const common = { categories, materials, flashcards, schedules, onNavigate: navigate };
     if (activePage === "timetable") {
-      return <TimetablePage schedules={schedules} onAddSchedule={addSchedule} onDeleteSchedule={deleteSchedule} />;
+      return (
+        <TimetablePage
+          schedules={schedules}
+          onAddSchedule={addSchedule}
+          onDeleteSchedule={deleteSchedule}
+          defaultView={settings.timetableView}
+        />
+      );
     }
     if (activePage === "flashcard") {
       return (
@@ -265,6 +537,7 @@ export default function DashboardPage() {
           {...common}
           onAddFlashcard={addFlashcard}
           onGenerateFlashcards={generateFlashcards}
+          onReviewFlashcard={reviewFlashcard}
         />
       );
     }
@@ -273,6 +546,7 @@ export default function DashboardPage() {
         <MaterialPage
           {...common}
           onAddCategory={addCategory}
+          onDeleteCategory={deleteCategory}
           onAddMaterial={addMaterial}
           onDeleteMaterial={deleteMaterial}
         />
@@ -284,8 +558,9 @@ export default function DashboardPage() {
           user={user}
           profile={profile}
           settings={settings}
-          onSaveProfile={setProfile}
-          onSaveSettings={setSettings}
+          onSaveProfile={saveProfile}
+          onSaveSettings={saveSettings}
+          onUploadAvatar={uploadAvatar}
         />
       );
     }
@@ -298,7 +573,28 @@ export default function DashboardPage() {
         onCompleteTask={completeTask}
       />
     );
-  }, [activePage, categories, materials, flashcards, schedules, tasks, user, profile, settings]);
+  }, [
+    activePage,
+    categories,
+    materials,
+    flashcards,
+    schedules,
+    tasks,
+    user,
+    profile,
+    settings,
+  ]);
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center">
+          <span className="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600" />
+          <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -317,14 +613,27 @@ export default function DashboardPage() {
           onSearch={setSearch}
           user={user}
           darkMode={settings.darkMode}
-          onToggleTheme={() => setSettings((value) => ({ ...value, darkMode: !value.darkMode }))}
+          onToggleTheme={toggleTheme}
         />
+
+        {(error || notice) && (
+          <div className={`mx-4 mt-3 rounded-xl border px-3 py-2 text-sm sm:mx-6 lg:mx-7 ${
+            error
+              ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-500/10 dark:text-rose-300"
+              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300"
+          }`}>
+            {error || notice}
+            <button className="float-right font-bold" onClick={() => { setError(""); setNotice(""); }}>×</button>
+          </div>
+        )}
+
         {search && (
-          <div className="mx-5 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 sm:mx-6 lg:mx-7 dark:border-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-300">
+          <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 sm:mx-6 lg:mx-7 dark:border-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-300">
             Searching your workspace for “{search}”
             <button className="float-right font-bold" onClick={() => setSearch("")}>Clear</button>
           </div>
         )}
+
         <main>{page}</main>
       </div>
     </div>

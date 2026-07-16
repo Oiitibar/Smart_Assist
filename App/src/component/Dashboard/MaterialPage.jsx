@@ -6,7 +6,6 @@ import {
   FileText,
   FileType2,
   FolderPlus,
-  MoreHorizontal,
   Plus,
   Presentation,
   Search,
@@ -63,6 +62,7 @@ export default function MaterialPage({
   materials,
   flashcards,
   onAddCategory,
+  onDeleteCategory,
   onAddMaterial,
   onDeleteMaterial,
 }) {
@@ -73,6 +73,8 @@ export default function MaterialPage({
   const [categoryName, setCategoryName] = useState("");
   const [selectedPalette, setSelectedPalette] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
   const [form, setForm] = useState({
     title: "",
@@ -89,15 +91,19 @@ export default function MaterialPage({
     [materials, selectedId, query],
   );
 
-  const createCategory = (event) => {
+  const createCategory = async (event) => {
     event.preventDefault();
-    if (!categoryName.trim()) return;
+    if (!categoryName.trim() || creatingCategory) return;
     const [color, soft, emoji] = palette[selectedPalette];
-    const id = `${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
-    onAddCategory({ id, name: categoryName.trim(), color, soft, emoji });
-    setCategoryName("");
-    setShowCategory(false);
-    setForm((value) => ({ ...value, categoryId: id }));
+    setCreatingCategory(true);
+    try {
+      const created = await onAddCategory({ name: categoryName.trim(), color, soft, emoji });
+      setCategoryName("");
+      setShowCategory(false);
+      setForm((value) => ({ ...value, categoryId: created?.id || value.categoryId }));
+    } finally {
+      setCreatingCategory(false);
+    }
   };
 
   const chooseFile = (file) => {
@@ -106,25 +112,23 @@ export default function MaterialPage({
     setForm((value) => ({ ...value, title: value.title || file.name }));
   };
 
-  const addMaterial = (event) => {
+  const addMaterial = async (event) => {
     event.preventDefault();
-    if (!selectedFile || !form.categoryId) return;
-    const type = fileExtension(selectedFile.name);
-    onAddMaterial({
-      id: crypto.randomUUID(),
-      title: form.title.trim() || selectedFile.name,
-      originalName: selectedFile.name,
-      categoryId: form.categoryId,
-      type,
-      mimeType: selectedFile.type,
-      size: selectedFile.size,
-      detail: form.description.trim() || `${type} · ${readableSize(selectedFile.size)}`,
-      updated: "Just now",
-      filePath: `uploads/${Date.now()}-${selectedFile.name.replace(/\s+/g, "-")}`,
-    });
-    setSelectedFile(null);
-    setForm((value) => ({ ...value, title: "", description: "" }));
-    setShowMaterial(false);
+    if (!selectedFile || !form.categoryId || uploading) return;
+    setUploading(true);
+    try {
+      await onAddMaterial({
+        file: selectedFile,
+        categoryId: form.categoryId,
+        title: form.title.trim() || selectedFile.name,
+        description: form.description.trim(),
+      });
+      setSelectedFile(null);
+      setForm((value) => ({ ...value, title: "", description: "" }));
+      setShowMaterial(false);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openUpload = () => {
@@ -156,10 +160,13 @@ export default function MaterialPage({
           const count = materials.filter((item) => item.categoryId === category.id).length;
           const active = selectedId === category.id;
           return (
-            <button
+            <article
               key={category.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setSelectedId(active ? "all" : category.id)}
-              className={`material-category-card relative min-h-[112px] rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 ${
+              onKeyDown={(event) => event.key === "Enter" && setSelectedId(active ? "all" : category.id)}
+              className={`material-category-card relative min-h-[112px] cursor-pointer rounded-2xl border p-3.5 text-left transition hover:-translate-y-0.5 ${
                 active ? "shadow-md" : "shadow-sm"
               }`}
               style={{
@@ -169,11 +176,18 @@ export default function MaterialPage({
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-lg shadow-sm">{category.emoji}</span>
-                <MoreHorizontal size={17} className="text-slate-400" />
+                <button
+                  type="button"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white hover:text-rose-500 dark:hover:bg-slate-900"
+                  onClick={(event) => { event.stopPropagation(); onDeleteCategory?.(category.id); }}
+                  aria-label={`Delete ${category.name}`}
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
               <strong className="mt-3 block text-sm text-slate-900 dark:text-white">{category.name}</strong>
               <small className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">{count} materials · {flashcards[category.id]?.length || 0} cards</small>
-            </button>
+            </article>
           );
         })}
 
@@ -268,7 +282,7 @@ export default function MaterialPage({
             </label>
             <div className="flex justify-end gap-2">
               <button type="button" className={secondaryButtonClass} onClick={() => setShowCategory(false)}>Cancel</button>
-              <button className={primaryButtonClass} type="submit">Create category</button>
+              <button className={primaryButtonClass} type="submit" disabled={creatingCategory}>{creatingCategory ? "Creating..." : "Create category"}</button>
             </div>
           </form>
         </Modal>
@@ -311,7 +325,7 @@ export default function MaterialPage({
             </label>
             <div className="flex justify-end gap-2">
               <button type="button" className={secondaryButtonClass} onClick={() => setShowMaterial(false)}>Cancel</button>
-              <button className={primaryButtonClass} type="submit" disabled={!selectedFile}>Upload material</button>
+              <button className={primaryButtonClass} type="submit" disabled={!selectedFile || uploading}>{uploading ? "Uploading..." : "Upload material"}</button>
             </div>
           </form>
         </Modal>

@@ -184,7 +184,7 @@ export default function LoginPage() {
 
         {/* Back to home */}
         <button
-          onClick={() => navigate("/Smart_Assist/")}
+          onClick={() => navigate("/")}
           className="mt-6 mx-auto flex items-center gap-1.5 text-white/25 hover:text-white/50 text-xs transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

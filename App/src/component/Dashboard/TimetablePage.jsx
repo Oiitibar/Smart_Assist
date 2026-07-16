@@ -47,9 +47,10 @@ function getWeekDates() {
   });
 }
 
-export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedule }) {
+export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedule, defaultView = "Week View" }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [view, setView] = useState("week");
+  const [view, setView] = useState(defaultView === "List View" ? "list" : "week");
+  const [saving, setSaving] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [form, setForm] = useState({
     title: "",
@@ -78,18 +79,22 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
 
   const weekTitle = `${weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${weekDates[4].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-    if (!form.title.trim()) return;
-    onAddSchedule({
-      ...form,
-      id: crypto.randomUUID(),
-      title: form.title.trim(),
-      room: form.room.trim() || "Room TBA",
-      teacher: form.teacher.trim() || "Instructor TBA",
-    });
-    setShowAdd(false);
-    setForm((value) => ({ ...value, title: "", room: "", teacher: "" }));
+    if (!form.title.trim() || saving) return;
+    setSaving(true);
+    try {
+      await onAddSchedule({
+        ...form,
+        title: form.title.trim(),
+        room: form.room.trim() || "Room TBA",
+        teacher: form.teacher.trim() || "Instructor TBA",
+      });
+      setShowAdd(false);
+      setForm((value) => ({ ...value, title: "", room: "", teacher: "" }));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -291,7 +296,7 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
             </label>
             <div className="flex justify-end gap-2 sm:col-span-2">
               <button type="button" className={secondaryButtonClass} onClick={() => setShowAdd(false)}>Cancel</button>
-              <button className={primaryButtonClass} type="submit">Add to timetable</button>
+              <button className={primaryButtonClass} type="submit" disabled={saving}>{saving ? "Adding..." : "Add to timetable"}</button>
             </div>
           </form>
         </Modal>

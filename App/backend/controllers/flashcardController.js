@@ -180,6 +180,53 @@ exports.updateCardReview = async (req, res) => {
   return res.json({ set, progress });
 };
 
+exports.deleteFlashcard = async (req, res) => {
+  const { setId, cardId } = req.params;
+
+  const set = await FlashcardSet.findOne({
+    _id: setId,
+    userId: req.user._id,
+  });
+
+  if (!set) {
+    return res.status(404).json({ message: "Flashcard set not found" });
+  }
+
+  const card = set.cards.id(cardId);
+
+  if (!card) {
+    return res.status(404).json({ message: "Flashcard not found" });
+  }
+
+  const wasLastCard = set.cards.length === 1;
+
+  if (wasLastCard) {
+    await set.deleteOne();
+  } else {
+    set.cards.pull(cardId);
+    await set.save();
+  }
+
+  await User.updateOne(
+    {
+      _id: req.user._id,
+      "studyData.flashcardsCreated": { $gt: 0 },
+    },
+    {
+      $inc: { "studyData.flashcardsCreated": -1 },
+    },
+  );
+
+  return res.json({
+    message: wasLastCard
+      ? "Flashcard deleted and empty set removed"
+      : "Flashcard deleted",
+    cardId,
+    setId,
+    setDeleted: wasLastCard,
+  });
+};
+
 exports.deleteFlashcardSet = async (req, res) => {
   const set = await FlashcardSet.findOneAndDelete({
     _id: req.params.setId,

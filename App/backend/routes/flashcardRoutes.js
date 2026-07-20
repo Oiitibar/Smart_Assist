@@ -9,6 +9,11 @@ router.get("/", protect, asyncHandler(controller.getFlashcardSets));
 router.post("/generate", protect, asyncHandler(controller.generateFlashcards));
 router.post("/manual", protect, asyncHandler(controller.createManualFlashcard));
 router.put("/:setId/review", protect, asyncHandler(controller.updateCardReview));
+router.delete(
+  "/:setId/cards/:cardId",
+  protect,
+  asyncHandler(controller.deleteFlashcard),
+);
 router.delete("/:setId", protect, asyncHandler(controller.deleteFlashcardSet));
 
 module.exports = router;

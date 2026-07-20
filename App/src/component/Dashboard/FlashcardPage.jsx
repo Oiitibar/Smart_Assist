@@ -8,6 +8,7 @@ import {
   Plus,
   RotateCcw,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { EmptyState, Modal, PageHeader, ProgressBar } from "./DashboardShared";
 import {
@@ -28,6 +29,7 @@ export default function FlashcardPage({
   onAddFlashcard,
   onGenerateFlashcards,
   onReviewFlashcard,
+  onDeleteFlashcard,
   onNavigate,
 }) {
   const [selectedId, setSelectedId] = useState(categories[0]?.id || "");
@@ -42,6 +44,7 @@ export default function FlashcardPage({
   const [generating, setGenerating] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
   const [savingReview, setSavingReview] = useState(false);
+  const [deletingCardId, setDeletingCardId] = useState("");
 
   useEffect(() => {
     if (!categories.some((item) => item.id === selectedId)) setSelectedId(categories[0]?.id || "");
@@ -135,6 +138,38 @@ export default function FlashcardPage({
     }
   };
 
+  const deleteCurrentCard = async () => {
+    if (!current?.id || !current?.setId || deletingCardId) return;
+
+    const confirmed = window.confirm(
+      "Delete this flashcard permanently? This action cannot be undone.",
+    );
+
+    if (!confirmed) return;
+
+    setDeletingCardId(current.id);
+    try {
+      await onDeleteFlashcard?.(current);
+      setFlipped(false);
+      setMastered((items) => items.filter((id) => id !== current.id));
+    } finally {
+      setDeletingCardId("");
+    }
+  };
+
+  useEffect(() => {
+    if (cards.length === 0) {
+      setIndex(0);
+      setFlipped(false);
+      return;
+    }
+
+    if (index >= cards.length) {
+      setIndex(cards.length - 1);
+      setFlipped(false);
+    }
+  }, [cards.length, index]);
+
   return (
     <div className={pageClass}>
       <PageHeader
@@ -220,9 +255,24 @@ export default function FlashcardPage({
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-600 dark:text-indigo-400">Review deck</p>
               <h2 className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{category?.emoji} {category?.name}</h2>
             </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-              {cards.length ? `${index + 1} / ${cards.length}` : "0 cards"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                {cards.length ? `${index + 1} / ${cards.length}` : "0 cards"}
+              </span>
+              {current && (
+                <button
+                  type="button"
+                  onClick={deleteCurrentCard}
+                  disabled={Boolean(deletingCardId)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                  aria-label="Delete current flashcard"
+                  title="Delete current flashcard"
+                >
+                  <Trash2 size={15} />
+                  {deletingCardId === current.id ? "Deleting..." : "Delete"}
+                </button>
+              )}
+            </div>
           </div>
 
           {cards.length === 0 ? (

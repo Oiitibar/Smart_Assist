@@ -209,7 +209,7 @@ export default function DashboardPage() {
     setError(message);
     setNotice("");
     if (requestError?.response?.status === 401 || requestError?.status === 401) {
-      window.location.href = "/login";
+      window.location.href = "/Smart_Assist/Login";
     }
   }, []);
 
@@ -453,6 +453,31 @@ export default function DashboardPage() {
     }
   };
 
+  const deleteFlashcard = async (card) => {
+    if (!card?.setId || !card?.id) return;
+
+    try {
+      await plannerApi.deleteFlashcard(card.setId, card.id);
+
+      setFlashcards((value) => {
+        const next = {};
+
+        for (const [categoryId, cards] of Object.entries(value)) {
+          next[categoryId] = cards.filter(
+            (item) => !(item.id === card.id && item.setId === card.setId),
+          );
+        }
+
+        return next;
+      });
+
+      showNotice("Flashcard deleted");
+    } catch (requestError) {
+      showError(requestError, "Could not delete flashcard");
+      throw requestError;
+    }
+  };
+
   const uploadAvatar = async (file) => {
     try {
       const response = await plannerApi.uploadAvatar(file);
@@ -512,12 +537,12 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } finally {
-      window.location.href = "/Smart_Assist/login";
-    }
-  };
+  try {
+    await logoutUser();
+  } finally {
+    window.location.href = "/Smart_Assist/Login";
+  }
+};
 
   const page = useMemo(() => {
     const common = { categories, materials, flashcards, schedules, onNavigate: navigate };
@@ -538,6 +563,7 @@ export default function DashboardPage() {
           onAddFlashcard={addFlashcard}
           onGenerateFlashcards={generateFlashcards}
           onReviewFlashcard={reviewFlashcard}
+          onDeleteFlashcard={deleteFlashcard}
         />
       );
     }

@@ -183,7 +183,7 @@ export default function DashboardHome({
               <Target size={22} />
             </span>
             <div>
-              <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">Today&apos;s focus</h2>
+              <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">Next Class</h2>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Your next class for today</p>
             </div>
           </div>

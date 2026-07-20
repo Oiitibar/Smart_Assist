@@ -237,11 +237,11 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
               </select>
             </PreferenceRow>
 
-            <PreferenceRow icon={Layers3} title="Flashcard mode" detail="Default review selection">
+            {/* <PreferenceRow icon={Layers3} title="Flashcard mode" detail="Default review selection">
               <select className={`${selectClass} w-full sm:w-48`} value={draftSettings.flashcardMode} onChange={(event) => updateSetting("flashcardMode", event.target.value)}>
                 <option>Review All</option><option>Unknown First</option><option>Random Order</option>
               </select>
-            </PreferenceRow>
+            </PreferenceRow> */}
           </div>
         </article>
       </section>

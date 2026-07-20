@@ -75,6 +75,7 @@ export default function MaterialPage({
   const [selectedFile, setSelectedFile] = useState(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef(null);
   const [form, setForm] = useState({
     title: "",
@@ -108,14 +109,33 @@ export default function MaterialPage({
 
   const chooseFile = (file) => {
     if (!file) return;
+
+    setUploadError("");
     setSelectedFile(file);
-    setForm((value) => ({ ...value, title: value.title || file.name }));
+    setForm((value) => ({
+      ...value,
+      title: value.title || file.name,
+    }));
   };
 
   const addMaterial = async (event) => {
     event.preventDefault();
-    if (!selectedFile || !form.categoryId || uploading) return;
+
+    if (uploading) return;
+
+    if (!(selectedFile instanceof File)) {
+      setUploadError("Please choose a file before uploading.");
+      return;
+    }
+
+    if (!form.categoryId) {
+      setUploadError("Please select a category.");
+      return;
+    }
+
+    setUploadError("");
     setUploading(true);
+
     try {
       await onAddMaterial({
         file: selectedFile,
@@ -123,17 +143,44 @@ export default function MaterialPage({
         title: form.title.trim() || selectedFile.name,
         description: form.description.trim(),
       });
+
       setSelectedFile(null);
-      setForm((value) => ({ ...value, title: "", description: "" }));
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      setForm((value) => ({
+        ...value,
+        title: "",
+        description: "",
+      }));
+
       setShowMaterial(false);
+    } catch (error) {
+      setUploadError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Could not upload this material.",
+      );
+      throw error;
     } finally {
       setUploading(false);
     }
   };
 
   const openUpload = () => {
-    setForm((value) => ({ ...value, categoryId: categories[0]?.id || "" }));
+    setForm((value) => ({
+      ...value,
+      categoryId: categories[0]?.id || "",
+    }));
     setSelectedFile(null);
+    setUploadError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
     setShowMaterial(true);
   };
 
@@ -323,6 +370,13 @@ export default function MaterialPage({
               Description
               <input className={inputClass} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Optional note about this file" />
             </label>
+
+            {uploadError && (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                {uploadError}
+              </p>
+            )}
+
             <div className="flex justify-end gap-2">
               <button type="button" className={secondaryButtonClass} onClick={() => setShowMaterial(false)}>Cancel</button>
               <button className={primaryButtonClass} type="submit" disabled={!selectedFile || uploading}>{uploading ? "Uploading..." : "Upload material"}</button>

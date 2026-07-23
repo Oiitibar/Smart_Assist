@@ -3,6 +3,7 @@ const path = require("path");
 const Material = require("../models/Material");
 const Category = require("../models/Category");
 const FlashcardSet = require("../models/FlashcardSet");
+const { deleteMaterialPreview } = require("../services/documentPreviewService");
 
 const getFileType = (filename) => {
   const extension = path
@@ -143,10 +144,8 @@ exports.deleteMaterial = async (req, res) => {
 
   await Promise.all([
     removeStoredFile(material.storedName),
-    FlashcardSet.deleteMany({
-      userId: req.user._id,
-      materialId: material._id,
-    }),
+    deleteMaterialPreview(material._id),
+    FlashcardSet.deleteMany({ userId: req.user._id, materialId: material._id }),
   ]);
 
   return res.json({

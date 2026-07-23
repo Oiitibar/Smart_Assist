@@ -16,6 +16,7 @@ const timetableRoutes = require("./routes/timetableRoutes");
 const materialRoutes = require("./routes/materialRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const flashcardRoutes = require("./routes/flashcardRoutes");
+const documentAiRoutes =require("./routes/documentAiRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 
 const app = express();
@@ -70,7 +71,8 @@ app.use("/api/materials", materialRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/flashcards", flashcardRoutes);
 app.use("/api/tasks", taskRoutes);
-
+app.use("/api/document-ai", documentAiRoutes);
+app.use("/api/materials", materialRoutes);
 // Route not found
 app.use((req, res) => {
   res.status(404).json({

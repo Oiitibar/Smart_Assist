@@ -99,12 +99,35 @@ export default function FlashcardPage({
   };
 
   const generate = async () => {
-    if (!selectedId || !selectedMaterialId) return;
+    if (
+      !selectedId ||
+      !selectedMaterialId ||
+      generating ||
+      typeof onGenerateFlashcards !== "function"
+    ) {
+      return;
+    }
+
+    const cardCount = Number(generateCount);
+
+    if (![3, 5, 10].includes(cardCount)) {
+      return;
+    }
+
     setGenerating(true);
-    await Promise.resolve(onGenerateFlashcards(selectedId, selectedMaterialId, Number(generateCount)));
-    setGenerating(false);
-    setIndex(0);
-    setFlipped(false);
+
+    try {
+      await onGenerateFlashcards(
+        selectedId,
+        selectedMaterialId,
+        cardCount,
+      );
+
+      setIndex(0);
+      setFlipped(false);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   if (!categories.length) {

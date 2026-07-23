@@ -412,25 +412,40 @@ export default function DashboardPage() {
     }
   };
 
-  const generateFlashcards = async (categoryId, materialId, count) => {
-    try {
-      const result = await plannerApi.generateFlashcards({
+  const generateFlashcards = async (
+  categoryId,
+  materialId,
+  count
+) => {
+  try {
+    const result =
+      await plannerApi.generateFlashcards({
         categoryId,
         materialId,
-        cardsPerTopic: count,
-        difficulty: "Medium",
+        cardCount: count,
+        language:
+          settings?.language ||
+          "Same as material",
       });
-      await refreshFlashcards();
-      showNotice(
-        result?.generationMode === "template"
-          ? "Cards generated with the local AI-ready fallback"
-          : "Flashcards generated",
-      );
-    } catch (requestError) {
-      showError(requestError, "Could not generate flashcards");
-      throw requestError;
-    }
-  };
+
+    await refreshFlashcards();
+
+    showNotice(
+      result?.aiProvider
+        ? `${count} cards generated with ${result.aiProvider}`
+        : `${count} flashcards generated`
+    );
+
+    return result;
+  } catch (requestError) {
+    showError(
+      requestError,
+      "Could not generate flashcards"
+    );
+
+    throw requestError;
+  }
+};
 
   const reviewFlashcard = async (card, known) => {
     if (!card?.setId || !card?.id) return;

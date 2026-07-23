@@ -3,46 +3,11 @@ const Material = require("../models/Material");
 const Category = require("../models/Category");
 const Progress = require("../models/Progress");
 const User = require("../models/User");
+const { extractMaterialText } = require("../services/documentTextService");
+const { generateFlashcardsWithAI } = require("../services/aiProviderService");
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
-const makeFallbackCards = ({ material, category, difficulty, count }) => {
-  const safeCount = Math.max(1, Math.min(Number(count) || 5, 30));
-  const source = material.title;
-  const subject = category.name;
-  const description = material.description || `${material.fileType} study material`;
-  const templates = [
-    [
-      `What is the main topic of ${source}?`,
-      `${source} is a ${description.toLowerCase()} for ${subject}. Review the material and state its central idea in your own words.`,
-    ],
-    [
-      `Which key definition should you remember from ${source}?`,
-      `Identify the most important definition in ${source}, then connect it to an example from ${subject}.`,
-    ],
-    [
-      `How can you summarize ${source} in one sentence?`,
-      `State the main idea, one supporting detail, and why it matters in ${subject}.`,
-    ],
-    [
-      `What question should you ask while reviewing ${source}?`,
-      `Ask what the concept means, how it works, and when it should be applied.`,
-    ],
-    [
-      `Give one practical use of the ideas in ${source}.`,
-      `Apply one key concept from the material to a problem, diagram, example, or real situation.`,
-    ],
-  ];
-
-  return Array.from({ length: safeCount }, (_, index) => {
-    const [question, answer] = templates[index % templates.length];
-    return {
-      question: safeCount > templates.length ? `${question} (${index + 1})` : question,
-      answer,
-      difficulty: difficulty || "Medium",
-    };
-  });
-};
 
 exports.getFlashcardSets = async (req, res) => {
   const sets = await FlashcardSet.find({ userId: req.user._id })
@@ -54,11 +19,25 @@ exports.getFlashcardSets = async (req, res) => {
 };
 
 exports.generateFlashcards = async (req, res) => {
-  const { materialId, categoryId, difficulty, cardsPerTopic } = req.body;
+  const {
+    materialId,
+    categoryId,
+    cardCount,
+    cardsPerTopic,
+    language,
+  } = req.body;
+
+  const requestedCount = Number(cardCount ?? cardsPerTopic);
 
   if (!materialId || !categoryId) {
     return res.status(400).json({
       message: "Material and category are required for flashcard generation",
+    });
+  }
+
+  if (![3, 5, 10].includes(requestedCount)) {
+    return res.status(400).json({
+      message: "Card count must be 3, 5, or 10",
     });
   }
 
@@ -71,8 +50,19 @@ exports.generateFlashcards = async (req, res) => {
   if (!category) return res.status(404).json({ message: "Category not found" });
 
   if (material.categoryId && String(material.categoryId) !== String(category._id)) {
-    return res.status(400).json({ message: "The selected material is not in this category" });
+    return res.status(400).json({
+      message: "The selected material is not in this category",
+    });
   }
+
+  const parsed = await extractMaterialText(material);
+  const generated = await generateFlashcardsWithAI({
+    sourceText: parsed.text,
+    materialTitle: material.title,
+    categoryName: category.name,
+    cardCount: requestedCount,
+    language: language || "Same as material",
+  });
 
   const set = await FlashcardSet.create({
     userId: req.user._id,
@@ -80,13 +70,17 @@ exports.generateFlashcards = async (req, res) => {
     categoryId: category._id,
     title: `${category.name} - ${material.title.replace(/\.[^/.]+$/, "")}`,
     sourceType: "ai",
-    generationMode: "template",
-    cards: makeFallbackCards({
-      material,
-      category,
-      difficulty,
-      count: cardsPerTopic,
-    }),
+    generationMode: "provider",
+    generation: {
+      provider: generated.provider,
+      model: generated.model,
+      requestedCardCount: requestedCount,
+      sourceFormat: parsed.extension.replace(/^\./, "").toUpperCase(),
+      sourceTextLength: parsed.originalLength,
+      sourceTextTruncated: parsed.truncated,
+      generatedAt: new Date(),
+    },
+    cards: generated.cards,
   });
 
   await User.findByIdAndUpdate(req.user._id, {
@@ -100,8 +94,9 @@ exports.generateFlashcards = async (req, res) => {
 
   return res.status(201).json({
     ...set.toObject(),
-    generationMode: "template",
-    message: "Flashcards created with the local AI-ready fallback generator",
+    aiProvider: generated.provider,
+    aiModel: generated.model,
+    message: `${set.cards.length} flashcards generated with ${generated.provider}`,
   });
 };
 

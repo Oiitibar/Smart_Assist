@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentUser, logoutUser } from "../../service/auth";
 import { plannerApi } from "../../service/plannerApi";
 import DashboardHome from "./DashboardHome";
-import FlashcardPage from "./FlashcardPage";
+import StudyPage from "./StudyPage";
 import MaterialPage from "./MaterialPage";
 import SettingPage from "./SettingPage";
 import Sidebar from "./Sidebar";
@@ -571,14 +571,14 @@ export default function DashboardPage() {
         />
       );
     }
-    if (activePage === "flashcard") {
+    if (activePage === "study") {
       return (
-        <FlashcardPage
+        <StudyPage
           {...common}
-          onAddFlashcard={addFlashcard}
+          materials={materials}
+          categories={categories}
+          onNavigate={navigate}
           onGenerateFlashcards={generateFlashcards}
-          onReviewFlashcard={reviewFlashcard}
-          onDeleteFlashcard={deleteFlashcard}
         />
       );
     }

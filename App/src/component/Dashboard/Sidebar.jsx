@@ -13,7 +13,7 @@ import {
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "timetable", label: "Timetable", icon: CalendarDays },
-  { id: "flashcard", label: "Flashcards", icon: Layers3 },
+  { id: "study", label: "Study", icon: GraduationCap },
   { id: "material", label: "Materials", icon: BookOpen },
   { id: "setting", label: "Settings", icon: Settings },
 ];

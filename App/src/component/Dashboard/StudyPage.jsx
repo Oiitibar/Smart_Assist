@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Highlighter,
   Maximize2,
+  Minimize2,
   MessageSquareText,
   Minus,
   NotebookPen,
@@ -30,7 +31,13 @@ import {
 } from "./ui";
 import documentAiApi from "../../service/documentAiApi";
 
-const safeId = (value) => String(value?.id || value?._id || "");
+const safeId = (value) => {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  return String(value?.id || value?._id || "");
+};
 const safeTitle = (material) => material?.title || material?.originalName || "Untitled material";
 const getType = (material) => {
   const value = String(material?.fileType || material?.mimeType || material?.originalName || material?.title || "").toLowerCase();
@@ -88,6 +95,8 @@ export default function StudyPage({
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [zoom, setZoom] = useState(100);
+  const [viewMode, setViewMode] = useState("smart");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedText, setSelectedText] = useState("");
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
@@ -105,19 +114,125 @@ export default function StudyPage({
 
   const relatedCategoryId = safeId(selectedMaterial?.categoryId);
 
+  const selectedCategory = useMemo(
+    () => categories.find((item) => safeId(item) === selectedCategoryId),
+    [categories, selectedCategoryId],
+  );
+
+  const materialCountByCategory = useMemo(() => {
+    return materials.reduce((counts, material) => {
+      const categoryId = safeId(material?.categoryId);
+
+      if (categoryId) {
+        counts[categoryId] = (counts[categoryId] || 0) + 1;
+      }
+
+      return counts;
+    }, {});
+  }, [materials]);
+
   useEffect(() => {
-    if (selectedMaterial && relatedCategoryId) setSelectedCategoryId(relatedCategoryId);
-  }, [selectedMaterialId, relatedCategoryId]);
+    const availableCategoryIds = categories
+      .map((item) => safeId(item))
+      .filter(Boolean);
+
+    if (!availableCategoryIds.length) {
+      setSelectedCategoryId("");
+      return;
+    }
+
+    if (!availableCategoryIds.includes(selectedCategoryId)) {
+      setSelectedCategoryId(availableCategoryIds[0]);
+    }
+  }, [categories, selectedCategoryId]);
+
+  useEffect(() => {
+    if (selectedMaterial && relatedCategoryId) {
+      setSelectedCategoryId(relatedCategoryId);
+    }
+  }, [selectedMaterial, relatedCategoryId]);
 
   const filteredMaterials = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return materials;
-    return materials.filter((item) => safeTitle(item).toLowerCase().includes(query));
-  }, [materials, searchTerm]);
+
+    return materials.filter((item) => {
+      const matchesCategory =
+        !selectedCategoryId ||
+        safeId(item?.categoryId) === selectedCategoryId;
+
+      const matchesSearch =
+        !query ||
+        safeTitle(item).toLowerCase().includes(query);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [materials, searchTerm, selectedCategoryId]);
+
+  const chooseCategory = (categoryId) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedMaterialId("");
+    setSearchTerm("");
+    setPageNumber(1);
+    setSelectedText("");
+    setMessages([]);
+  };
 
   const previewUrl = selectedMaterial
     ? documentAiApi.getViewUrl(selectedMaterialId)
     : "";
+
+  const previewZoom =
+    viewMode === "smart"
+      ? isFullscreen
+        ? "page-fit"
+        : "page-width"
+      : zoom;
+
+  const previewSource = previewUrl
+    ? `${previewUrl}#page=${pageNumber}&zoom=${previewZoom}`
+    : "";
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const active = document.fullscreenElement === viewerRef.current;
+      setIsFullscreen(active);
+
+      if (active) {
+        setViewMode("smart");
+      }
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
+  const changeZoom = (amount) => {
+    setViewMode("custom");
+    setZoom((value) => Math.min(200, Math.max(50, value + amount)));
+  };
+
+  const enableSmartView = () => {
+    setViewMode("smart");
+  };
+
+  const toggleFullscreen = async () => {
+    const viewer = viewerRef.current;
+
+    if (!viewer) return;
+
+    try {
+      if (document.fullscreenElement === viewer) {
+        await document.exitFullscreen?.();
+      } else {
+        await viewer.requestFullscreen?.();
+      }
+    } catch (error) {
+      console.error("Could not change fullscreen mode:", error);
+    }
+  };
 
   const captureSelection = () => {
     const selection = window.getSelection?.();
@@ -180,35 +295,124 @@ export default function StudyPage({
           action={<button className={secondaryButtonClass} onClick={() => onNavigate?.("material")}><Plus size={17} /> Upload material</button>}
         />
 
+        {categories.length > 0 && (
+          <div
+            className="mb-3 flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900"
+            role="tablist"
+            aria-label="Study material categories"
+          >
+            {categories.map((item) => {
+              const categoryId = safeId(item);
+              const active = selectedCategoryId === categoryId;
+
+              return (
+                <button
+                  key={categoryId}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => chooseCategory(categoryId)}
+                  className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    active
+                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                      : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <span>{item.emoji || "📚"}</span>
+                  <span>{item.name}</span>
+                  <small
+                    className={`grid h-5 min-w-5 place-items-center rounded-md px-1 text-[10px] ${
+                      active
+                        ? "bg-white dark:bg-slate-900"
+                        : "bg-slate-100 dark:bg-slate-800"
+                    }`}
+                  >
+                    {materialCountByCategory[categoryId] || 0}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <section className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-950 dark:text-white">Choose a material to study</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Your uploaded documents are available here.</p>
+              <h2 className="text-base font-bold text-slate-950 dark:text-white">
+                Choose a {selectedCategory?.name || "study"} material
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Only materials assigned to the selected category are shown.
+              </p>
             </div>
+
             <label className="relative block w-full sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input className={`${inputClass} pl-9`} value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search materials..." />
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
+              <input
+                className={`${inputClass} pl-9`}
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={`Search ${selectedCategory?.name || "materials"}...`}
+              />
             </label>
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {filteredMaterials.map((material) => (
-              <button
-                key={safeId(material)}
-                type="button"
-                onClick={() => setSelectedMaterialId(safeId(material))}
-                className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-500/5"
-              >
-                <MaterialBadge material={material} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-900 group-hover:text-indigo-700 dark:text-white dark:group-hover:text-indigo-300">{safeTitle(material)}</p>
-                  <p className="mt-1 text-xs text-slate-400">Open viewer and AI assistant</p>
-                </div>
-                <ArrowRight size={18} className="text-slate-300 transition group-hover:text-indigo-500" />
-              </button>
-            ))}
-          </div>
+          {filteredMaterials.length > 0 ? (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {filteredMaterials.map((material) => (
+                <button
+                  key={safeId(material)}
+                  type="button"
+                  onClick={() => setSelectedMaterialId(safeId(material))}
+                  className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-500/5"
+                >
+                  <MaterialBadge material={material} />
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-900 group-hover:text-indigo-700 dark:text-white dark:group-hover:text-indigo-300">
+                      {safeTitle(material)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Open viewer and AI assistant
+                    </p>
+                  </div>
+
+                  <ArrowRight
+                    size={18}
+                    className="text-slate-300 transition group-hover:text-indigo-500"
+                  />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 grid min-h-64 place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-950/50">
+              <EmptyState
+                title={
+                  searchTerm.trim()
+                    ? "No matching materials"
+                    : `No materials in ${selectedCategory?.name || "this category"}`
+                }
+                message={
+                  searchTerm.trim()
+                    ? "Try another search word or choose a different category."
+                    : "Upload a material and assign it to this category before studying."
+                }
+                action={
+                  <button
+                    type="button"
+                    className={secondaryButtonClass}
+                    onClick={() => onNavigate?.("material")}
+                  >
+                    <Plus size={17} />
+                    Add material
+                  </button>
+                }
+              />
+            </div>
+          )}
         </section>
       </div>
     );
@@ -228,30 +432,94 @@ export default function StudyPage({
         eyebrow="AI study workspace"
         title="Study"
         description="Read, select content, ask questions, and create learning activities from one place."
-        action={<button className={secondaryButtonClass} onClick={() => setSelectedMaterialId("")}><ArrowLeft size={17} /> All materials</button>}
+        action={<button className={secondaryButtonClass} onClick={() => setSelectedMaterialId("")}><ArrowLeft size={17} /> Category materials</button>}
       />
 
       <div className="mb-3 grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
-        <section className={`${panelClass} min-w-0 overflow-hidden`}>
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
+        <section
+          ref={viewerRef}
+          className={`${panelClass} min-w-0 overflow-hidden ${
+            isFullscreen
+              ? "flex h-screen w-screen flex-col !rounded-none !border-0 bg-white dark:bg-slate-950"
+              : ""
+          }`}
+        >
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
             <MaterialBadge material={selectedMaterial} />
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900 dark:text-white">{safeTitle(selectedMaterial)}</span>
-            <button type="button" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700" onClick={() => setZoom((value) => Math.max(70, value - 10))}><Minus size={16} /></button>
-            <span className="w-12 text-center text-xs font-semibold text-slate-500">{zoom}%</span>
-            <button type="button" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700" onClick={() => setZoom((value) => Math.min(160, value + 10))}><Plus size={16} /></button>
-            <button type="button" className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700" onClick={() => viewerRef.current?.requestFullscreen?.()}><Maximize2 size={16} /></button>
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900 dark:text-white">
+              {safeTitle(selectedMaterial)}
+            </span>
+
+            <button
+              type="button"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+              onClick={() => changeZoom(-10)}
+              aria-label="Zoom out"
+              title="Zoom out"
+            >
+              <Minus size={16} />
+            </button>
+
+            <span className="w-14 text-center text-xs font-semibold text-slate-500 dark:text-slate-300">
+              {viewMode === "smart" ? "Auto" : `${zoom}%`}
+            </span>
+
+            <button
+              type="button"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+              onClick={() => changeZoom(10)}
+              aria-label="Zoom in"
+              title="Zoom in"
+            >
+              <Plus size={16} />
+            </button>
+
+            <button
+              type="button"
+              onClick={enableSmartView}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition ${
+                viewMode === "smart"
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300"
+                  : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              }`}
+              aria-pressed={viewMode === "smart"}
+              title="Automatically fit the document to the available viewer space"
+            >
+              <WandSparkles size={15} />
+              <span className="hidden sm:inline">Smart view</span>
+            </button>
+
+            <button
+              type="button"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
           </div>
 
-          <div ref={viewerRef} onMouseUp={captureSelection} className="relative min-h-[580px] bg-slate-100 p-3 dark:bg-slate-950">
+          <div
+            onMouseUp={captureSelection}
+            className={`relative min-h-0 bg-slate-100 dark:bg-slate-950 ${
+              isFullscreen
+                ? "flex-1 overflow-hidden p-0"
+                : "h-[clamp(520px,68vh,860px)] p-3"
+            }`}
+          >
             {["PDF", "DOCX", "PPTX"].includes(getType(selectedMaterial)) ? (
               <iframe
-                key={`${selectedMaterialId}-${pageNumber}-${zoom}`}
+                key={`${selectedMaterialId}-${pageNumber}-${previewZoom}-${isFullscreen}`}
                 title={safeTitle(selectedMaterial)}
-                src={`${previewUrl}#page=${pageNumber}&zoom=${zoom}`}
-                className="h-[580px] w-full rounded-xl border-0 bg-white"
+                src={previewSource}
+                className={`h-full w-full border-0 bg-white ${
+                  isFullscreen ? "rounded-none" : "rounded-xl"
+                }`}
+                allowFullScreen
               />
             ) : (
-              <div className="grid min-h-[580px] place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
+              <div className="grid h-full min-h-[520px] place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
                 <div>
                   <FolderOpen className="mx-auto text-indigo-500" size={40} />
                   <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">Preview is not available for this file</h3>
@@ -261,7 +529,7 @@ export default function StudyPage({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
             <button className={secondaryButtonClass} onClick={() => setSelectedText(window.getSelection?.()?.toString().trim() || "")}><Highlighter size={16} /> Capture selection</button>
             <button className={secondaryButtonClass} onClick={() => setBookmarked((value) => !value)}><Bookmark size={16} /> {bookmarked ? "Bookmarked" : "Bookmark"}</button>
             <button className={secondaryButtonClass} onClick={() => setPageNumber((value) => Math.max(1, value - 1))}><ArrowLeft size={16} /> Previous</button>

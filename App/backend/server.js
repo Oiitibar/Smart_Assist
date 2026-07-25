@@ -71,7 +71,7 @@ app.use("/api/materials", materialRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/flashcards", flashcardRoutes);
 app.use("/api/tasks", taskRoutes);
-app.use("/api/document-ai", documentAiRoutes);
+app.use("/api/materials", documentAiRoutes);
 app.use("/api/materials", materialRoutes);
 // Route not found
 app.use((req, res) => {

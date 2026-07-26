@@ -12,7 +12,7 @@ import Topbar from "./Topbar";
 const titles = {
   dashboard: "Dashboard",
   timetable: "Timetable",
-  flashcard: "Flashcards",
+  study: "Study",
   material: "Materials",
   setting: "Settings",
 };
@@ -153,11 +153,36 @@ function normalizeFlashcards(sets) {
       ...card,
       id: getId(card),
       setId: getId(set),
+      materialId: getId(set.materialId),
       source: materialTitle,
+      sourceReference: card.sourceReference || "",
       reviewed: Boolean(card.reviewed),
       correct: Boolean(card.correct),
     }));
     grouped[categoryId] = [...(grouped[categoryId] || []), ...normalizedCards];
+    return grouped;
+  }, {});
+}
+
+function normalizeQuizzes(sets) {
+  return (sets || []).reduce((grouped, set) => {
+    const categoryId = getId(set.categoryId);
+    if (!categoryId) return grouped;
+
+    const normalized = {
+      ...set,
+      id: getId(set),
+      categoryId,
+      materialId: getId(set.materialId),
+      materialTitle: set.materialId?.title || set.title || "Material quiz",
+      questions: (set.questions || []).map((question) => ({
+        ...question,
+        id: getId(question),
+      })),
+      attempts: Array.isArray(set.attempts) ? set.attempts : [],
+    };
+
+    grouped[categoryId] = [...(grouped[categoryId] || []), normalized];
     return grouped;
   }, {});
 }
@@ -196,6 +221,7 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [flashcards, setFlashcards] = useState({});
+  const [quizzes, setQuizzes] = useState({});
   const [schedules, setSchedules] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [profile, setProfile] = useState(defaultProfile);
@@ -221,11 +247,12 @@ export default function DashboardPage() {
   }, []);
 
   const loadWorkspace = useCallback(async () => {
-    const [categoryData, materialData, timetableData, flashcardData, taskData] = await Promise.all([
+    const [categoryData, materialData, timetableData, flashcardData, quizData, taskData] = await Promise.all([
       plannerApi.getCategories(),
       plannerApi.getMaterials(),
       plannerApi.getTimetable(),
       plannerApi.getFlashcards(),
+      plannerApi.getQuizzes(),
       plannerApi.getTasks(),
     ]);
 
@@ -233,6 +260,7 @@ export default function DashboardPage() {
     setMaterials((materialData || []).map(normalizeMaterial));
     setSchedules((timetableData || []).map(normalizeSchedule));
     setFlashcards(normalizeFlashcards(flashcardData));
+    setQuizzes(normalizeQuizzes(quizData));
     setTasks((taskData || []).map(normalizeTask));
   }, []);
 
@@ -287,6 +315,7 @@ export default function DashboardPage() {
       const normalized = normalizeCategory(created, categories.length);
       setCategories((value) => [normalized, ...value]);
       setFlashcards((value) => ({ ...value, [normalized.id]: value[normalized.id] || [] }));
+      setQuizzes((value) => ({ ...value, [normalized.id]: value[normalized.id] || [] }));
       showNotice("Category created");
       return normalized;
     } catch (requestError) {
@@ -302,6 +331,11 @@ export default function DashboardPage() {
       setCategories((value) => value.filter((item) => item.id !== id));
       setMaterials((value) => value.map((item) => item.categoryId === id ? { ...item, categoryId: "" } : item));
       setFlashcards((value) => {
+        const next = { ...value };
+        delete next[id];
+        return next;
+      });
+      setQuizzes((value) => {
         const next = { ...value };
         delete next[id];
         return next;
@@ -330,7 +364,7 @@ export default function DashboardPage() {
     try {
       await plannerApi.deleteMaterial(id);
       setMaterials((value) => value.filter((item) => item.id !== id));
-      await refreshFlashcards();
+      await Promise.all([refreshFlashcards(), refreshQuizzes()]);
       showNotice("Material deleted");
     } catch (requestError) {
       showError(requestError, "Could not delete material");
@@ -397,6 +431,11 @@ export default function DashboardPage() {
     setFlashcards(normalizeFlashcards(sets));
   };
 
+  const refreshQuizzes = async () => {
+    const sets = await plannerApi.getQuizzes();
+    setQuizzes(normalizeQuizzes(sets));
+  };
+
   const addFlashcard = async (categoryId, card) => {
     try {
       await plannerApi.createManualFlashcard({
@@ -446,6 +485,60 @@ export default function DashboardPage() {
     throw requestError;
   }
 };
+
+  const generateQuiz = async (categoryId, materialId) => {
+    try {
+      const result = await plannerApi.generateQuiz({
+        categoryId,
+        materialId,
+        language: settings?.language || "Same as material",
+      });
+      await refreshQuizzes();
+      showNotice(
+        result?.aiProvider
+          ? `${result.questions?.length || "AI"} quiz questions generated with ${result.aiProvider}`
+          : "Quiz generated and stored",
+      );
+      return {
+        ...result,
+        id: getId(result),
+        materialId: getId(result?.materialId),
+        categoryId: getId(result?.categoryId),
+      };
+    } catch (requestError) {
+      showError(requestError, "Could not generate quiz");
+      throw requestError;
+    }
+  };
+
+  const submitQuiz = async (setId, answers) => {
+    try {
+      const result = await plannerApi.submitQuizAttempt(setId, answers);
+      await refreshQuizzes();
+      showNotice(`Quiz score saved: ${result.score}/${result.total}`);
+      return result;
+    } catch (requestError) {
+      showError(requestError, "Could not save quiz attempt");
+      throw requestError;
+    }
+  };
+
+  const deleteQuiz = async (setId) => {
+    try {
+      await plannerApi.deleteQuizSet(setId);
+      setQuizzes((value) => {
+        const next = {};
+        for (const [categoryId, sets] of Object.entries(value)) {
+          next[categoryId] = sets.filter((set) => set.id !== setId);
+        }
+        return next;
+      });
+      showNotice("Quiz deleted");
+    } catch (requestError) {
+      showError(requestError, "Could not delete quiz");
+      throw requestError;
+    }
+  };
 
   const reviewFlashcard = async (card, known) => {
     if (!card?.setId || !card?.id) return;
@@ -560,7 +653,7 @@ export default function DashboardPage() {
 };
 
   const page = useMemo(() => {
-    const common = { categories, materials, flashcards, schedules, onNavigate: navigate };
+    const common = { categories, materials, flashcards, quizzes, schedules, onNavigate: navigate };
     if (activePage === "timetable") {
       return (
         <TimetablePage
@@ -579,6 +672,11 @@ export default function DashboardPage() {
           categories={categories}
           onNavigate={navigate}
           onGenerateFlashcards={generateFlashcards}
+          onReviewFlashcard={reviewFlashcard}
+          onDeleteFlashcard={deleteFlashcard}
+          onGenerateQuiz={generateQuiz}
+          onSubmitQuiz={submitQuiz}
+          onDeleteQuiz={deleteQuiz}
         />
       );
     }
@@ -619,6 +717,7 @@ export default function DashboardPage() {
     categories,
     materials,
     flashcards,
+    quizzes,
     schedules,
     tasks,
     user,

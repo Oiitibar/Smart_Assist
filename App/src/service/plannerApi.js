@@ -84,6 +84,14 @@ export const plannerApi = {
   deleteFlashcardSet: (setId) =>
     requestData(api.delete(`/flashcards/${setId}`)),
 
+  getQuizzes: () => requestData(api.get("/quizzes")),
+  generateQuiz: (payload) =>
+    requestData(api.post("/quizzes/generate", payload)),
+  submitQuizAttempt: (setId, answers) =>
+    requestData(api.post(`/quizzes/${setId}/attempts`, { answers })),
+  deleteQuizSet: (setId) =>
+    requestData(api.delete(`/quizzes/${setId}`)),
+
   getTasks: () => requestData(api.get("/tasks")),
   createTask: (payload) =>
     requestData(api.post("/tasks", payload)),

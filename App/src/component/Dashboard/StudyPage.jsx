@@ -2,21 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  Bookmark,
   Bot,
-  CheckCircle2,
+  BrainCircuit,
+  FileQuestion,
   FileText,
   FolderOpen,
-  Highlighter,
+  Languages,
+  Layers3,
   Maximize2,
   Minimize2,
-  MessageSquareText,
   Minus,
-  NotebookPen,
   Plus,
   Search,
   Send,
-  Sparkles,
   WandSparkles,
 } from "lucide-react";
 import { EmptyState, PageHeader } from "./DashboardShared";
@@ -26,21 +24,30 @@ import {
   panelClass,
   primaryButtonClass,
   secondaryButtonClass,
-  selectClass,
   textareaClass,
 } from "./ui";
 import documentAiApi from "../../service/documentAiApi";
+import StudyFlashcards from "./StudyFlashcards";
+import StudyQuiz from "./StudyQuiz";
 
 const safeId = (value) => {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);
   }
-
   return String(value?.id || value?._id || "");
 };
-const safeTitle = (material) => material?.title || material?.originalName || "Untitled material";
+
+const safeTitle = (material) =>
+  material?.title || material?.originalName || "Untitled material";
+
 const getType = (material) => {
-  const value = String(material?.fileType || material?.mimeType || material?.originalName || material?.title || "").toLowerCase();
+  const value = String(
+    material?.fileType ||
+      material?.mimeType ||
+      material?.originalName ||
+      material?.title ||
+      "",
+  ).toLowerCase();
   if (value.includes("pdf")) return "PDF";
   if (value.includes("presentation") || value.includes("ppt")) return "PPTX";
   if (value.includes("word") || value.includes("doc")) return "DOCX";
@@ -58,53 +65,70 @@ const typeClass = {
 
 function MaterialBadge({ material }) {
   const type = getType(material);
-  return <span className={`rounded-lg border px-2 py-1 text-[10px] font-bold ${typeClass[type]}`}>{type}</span>;
+  return (
+    <span
+      className={`rounded-lg border px-2 py-1 text-[10px] font-bold ${typeClass[type]}`}
+    >
+      {type}
+    </span>
+  );
 }
 
-function AnswerCard({ message }) {
+function ChatBubble({ entry }) {
+  const isUser = entry.role === "user";
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-          <Bot size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">{message.answer}</p>
-          {message.sources?.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {message.sources.map((source, index) => (
-                <span key={`${source.pageNumber || source.slideNumber || index}-${index}`} className="rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
-                  Source: {source.title || "Material"}{source.pageNumber ? `, page ${source.pageNumber}` : ""}{source.slideNumber ? `, slide ${source.slideNumber}` : ""}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+          isUser
+            ? "bg-indigo-600 text-white"
+            : "border border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+        }`}
+      >
+        {!isUser && (
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-300">
+            <Bot size={15} /> Smart Assist
+          </div>
+        )}
+        <p className="whitespace-pre-wrap">{entry.content}</p>
+        {!isUser && entry.sourceTitle && (
+          <p className="mt-3 rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+            Source material: {entry.sourceTitle}
+          </p>
+        )}
       </div>
-    </article>
+    </div>
   );
 }
 
 export default function StudyPage({
   materials = [],
   categories = [],
+  flashcards = {},
+  quizzes = {},
   onNavigate,
   onGenerateFlashcards,
+  onReviewFlashcard,
+  onDeleteFlashcard,
+  onGenerateQuiz,
+  onSubmitQuiz,
+  onDeleteQuiz,
 }) {
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    () => sessionStorage.getItem("smart-assist-study-category") || "",
+  );
+  const [studySection, setStudySection] = useState(
+    () => sessionStorage.getItem("smart-assist-study-section") || "materials",
+  );
   const [pageNumber, setPageNumber] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [viewMode, setViewMode] = useState("smart");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [selectedText, setSelectedText] = useState("");
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [exchange, setExchange] = useState([]);
   const [busyAction, setBusyAction] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [bookmarked, setBookmarked] = useState(false);
-  const [note, setNote] = useState("");
-  const [cardCount, setCardCount] = useState(5);
   const viewerRef = useRef(null);
 
   const selectedMaterial = useMemo(
@@ -112,82 +136,88 @@ export default function StudyPage({
     [materials, selectedMaterialId],
   );
 
-  const relatedCategoryId = safeId(selectedMaterial?.categoryId);
-
   const selectedCategory = useMemo(
     () => categories.find((item) => safeId(item) === selectedCategoryId),
     [categories, selectedCategoryId],
   );
 
-  const materialCountByCategory = useMemo(() => {
-    return materials.reduce((counts, material) => {
-      const categoryId = safeId(material?.categoryId);
+  const categoryMaterials = useMemo(
+    () =>
+      materials.filter(
+        (item) => safeId(item?.categoryId) === selectedCategoryId,
+      ),
+    [materials, selectedCategoryId],
+  );
 
-      if (categoryId) {
-        counts[categoryId] = (counts[categoryId] || 0) + 1;
-      }
+  const categoryCards = flashcards[selectedCategoryId] || [];
+  const categoryQuizzes = quizzes[selectedCategoryId] || [];
 
-      return counts;
-    }, {});
-  }, [materials]);
+  const materialCountByCategory = useMemo(
+    () =>
+      materials.reduce((counts, material) => {
+        const categoryId = safeId(material?.categoryId);
+        if (categoryId) {
+          counts[categoryId] = (counts[categoryId] || 0) + 1;
+        }
+        return counts;
+      }, {}),
+    [materials],
+  );
 
   useEffect(() => {
-    const availableCategoryIds = categories
-      .map((item) => safeId(item))
-      .filter(Boolean);
-
+    const availableCategoryIds = categories.map(safeId).filter(Boolean);
     if (!availableCategoryIds.length) {
       setSelectedCategoryId("");
       return;
     }
-
     if (!availableCategoryIds.includes(selectedCategoryId)) {
       setSelectedCategoryId(availableCategoryIds[0]);
     }
   }, [categories, selectedCategoryId]);
 
   useEffect(() => {
-    if (selectedMaterial && relatedCategoryId) {
-      setSelectedCategoryId(relatedCategoryId);
+    if (selectedCategoryId) {
+      sessionStorage.setItem(
+        "smart-assist-study-category",
+        selectedCategoryId,
+      );
     }
-  }, [selectedMaterial, relatedCategoryId]);
+  }, [selectedCategoryId]);
 
-  const filteredMaterials = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return materials.filter((item) => {
-      const matchesCategory =
-        !selectedCategoryId ||
-        safeId(item?.categoryId) === selectedCategoryId;
-
-      const matchesSearch =
-        !query ||
-        safeTitle(item).toLowerCase().includes(query);
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [materials, searchTerm, selectedCategoryId]);
+  useEffect(() => {
+    sessionStorage.setItem("smart-assist-study-section", studySection);
+  }, [studySection]);
 
   const chooseCategory = (categoryId) => {
     setSelectedCategoryId(categoryId);
     setSelectedMaterialId("");
     setSearchTerm("");
     setPageNumber(1);
-    setSelectedText("");
-    setMessages([]);
+    setExchange([]);
+    setQuestion("");
   };
+
+  const chooseSection = (section) => {
+    setStudySection(section);
+    setSelectedMaterialId("");
+    setSearchTerm("");
+    setPageNumber(1);
+    setExchange([]);
+    setQuestion("");
+  };
+
+  const filteredMaterials = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return categoryMaterials.filter(
+      (item) => !query || safeTitle(item).toLowerCase().includes(query),
+    );
+  }, [categoryMaterials, searchTerm]);
 
   const previewUrl = selectedMaterial
     ? documentAiApi.getViewUrl(selectedMaterialId)
     : "";
-
   const previewZoom =
-    viewMode === "smart"
-      ? isFullscreen
-        ? "page-fit"
-        : "page-width"
-      : zoom;
-
+    viewMode === "smart" ? (isFullscreen ? "page-fit" : "page-width") : zoom;
   const previewSource = previewUrl
     ? `${previewUrl}#page=${pageNumber}&zoom=${previewZoom}`
     : "";
@@ -196,17 +226,11 @@ export default function StudyPage({
     const syncFullscreenState = () => {
       const active = document.fullscreenElement === viewerRef.current;
       setIsFullscreen(active);
-
-      if (active) {
-        setViewMode("smart");
-      }
+      if (active) setViewMode("smart");
     };
-
     document.addEventListener("fullscreenchange", syncFullscreenState);
-
-    return () => {
+    return () =>
       document.removeEventListener("fullscreenchange", syncFullscreenState);
-    };
   }, []);
 
   const changeZoom = (amount) => {
@@ -214,15 +238,9 @@ export default function StudyPage({
     setZoom((value) => Math.min(200, Math.max(50, value + amount)));
   };
 
-  const enableSmartView = () => {
-    setViewMode("smart");
-  };
-
   const toggleFullscreen = async () => {
     const viewer = viewerRef.current;
-
     if (!viewer) return;
-
     try {
       if (document.fullscreenElement === viewer) {
         await document.exitFullscreen?.();
@@ -234,118 +252,422 @@ export default function StudyPage({
     }
   };
 
-  const captureSelection = () => {
-    const selection = window.getSelection?.();
-    const text = selection?.toString().trim();
-    if (text && text.length >= 10) setSelectedText(text.slice(0, 12_000));
-  };
-
-  const runAiAction = async (action, customQuestion = "") => {
+  const runAssistant = async ({ action, language = "auto", prompt }) => {
     if (!selectedMaterialId || busyAction) return;
-    setBusyAction(action);
+
+    const userEntry = { role: "user", content: prompt };
+    // Each request replaces the previous exchange. Only the latest student
+    // request and latest AI answer remain visible.
+    setExchange([userEntry]);
+    if (action === "question") setQuestion("");
+    setBusyAction(`${action}-${language}`);
+
     try {
       const result = await documentAiApi.ask(selectedMaterialId, {
         action,
-        question: customQuestion,
-        selectedText,
-        pageNumber,
-        scope: selectedText ? "selection" : "document",
+        question: action === "question" ? prompt : "",
+        language,
       });
-      setMessages((items) => [...items, result]);
+      setExchange([
+        userEntry,
+        {
+          role: "assistant",
+          content: result.answer,
+          sourceTitle: result.sources?.[0]?.title || safeTitle(selectedMaterial),
+        },
+      ]);
       setQuestion("");
+    } catch (error) {
+      setExchange([
+        userEntry,
+        {
+          role: "assistant",
+          content:
+            error?.response?.data?.message ||
+            error?.message ||
+            "The study assistant could not answer this request.",
+          sourceTitle: safeTitle(selectedMaterial),
+        },
+      ]);
     } finally {
       setBusyAction("");
     }
   };
 
-  const generateFlashcards = async () => {
-    if (!selectedMaterialId || busyAction) return;
-    const categoryId = selectedCategoryId || relatedCategoryId;
-    if (!categoryId || typeof onGenerateFlashcards !== "function") return;
-    setBusyAction("flashcards");
-    try {
-      await onGenerateFlashcards(categoryId, selectedMaterialId, Number(cardCount));
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  if (!materials.length) {
+  if (!categories.length) {
     return (
       <div className={pageClass}>
-        <PageHeader eyebrow="AI study workspace" title="Study" description="Read a material and ask AI without leaving Smart Assist." />
-        <section className={`${panelClass} grid min-h-96 place-items-center`}>
+        <PageHeader
+          eyebrow="AI study workspace"
+          title="Study"
+          description="Study materials, flashcards, and stored AI quizzes by category."
+        />
+        <section className={`${panelClass} grid min-h-96 place-items-center p-6`}>
           <EmptyState
-            title="Upload a study material first"
-            message="PDF, DOCX, PPTX and TXT materials will appear here after upload."
-            action={<button className={primaryButtonClass} onClick={() => onNavigate?.("material")}>Go to materials</button>}
+            title="Create a category first"
+            message="Study materials, flashcards, and quizzes are organized by category."
+            action={
+              <button
+                className={primaryButtonClass}
+                onClick={() => onNavigate?.("material")}
+              >
+                Go to materials
+              </button>
+            }
           />
         </section>
       </div>
     );
   }
 
-  if (!selectedMaterial) {
+  if (selectedMaterial) {
     return (
       <div className={pageClass}>
         <PageHeader
-          eyebrow="AI study workspace"
-          title="Study"
-          description="Open a material, read it inside Smart Assist, and ask AI about the content."
-          action={<button className={secondaryButtonClass} onClick={() => onNavigate?.("material")}><Plus size={17} /> Upload material</button>}
+          eyebrow={`${selectedCategory?.name || "Study"} material`}
+          title="Smart Viewer"
+          description="The AI assistant uses the whole uploaded material, not the current viewer page."
+          action={
+            <button
+              className={secondaryButtonClass}
+              onClick={() => {
+                setSelectedMaterialId("");
+                setExchange([]);
+              }}
+            >
+              <ArrowLeft size={17} /> Category materials
+            </button>
+          }
         />
 
-        {categories.length > 0 && (
-          <div
-            className="mb-3 flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900"
-            role="tablist"
-            aria-label="Study material categories"
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
+          <section
+            ref={viewerRef}
+            className={`${panelClass} min-w-0 overflow-hidden ${
+              isFullscreen
+                ? "flex h-screen w-screen flex-col !rounded-none !border-0 bg-white dark:bg-slate-950"
+                : ""
+            }`}
           >
-            {categories.map((item) => {
-              const categoryId = safeId(item);
-              const active = selectedCategoryId === categoryId;
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
+              <MaterialBadge material={selectedMaterial} />
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900 dark:text-white">
+                {safeTitle(selectedMaterial)}
+              </span>
+              <button
+                type="button"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+                onClick={() => changeZoom(-10)}
+                aria-label="Zoom out"
+              >
+                <Minus size={16} />
+              </button>
+              <span className="w-14 text-center text-xs font-semibold text-slate-500 dark:text-slate-300">
+                {viewMode === "smart" ? "Auto" : `${zoom}%`}
+              </span>
+              <button
+                type="button"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+                onClick={() => changeZoom(10)}
+                aria-label="Zoom in"
+              >
+                <Plus size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("smart")}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition ${
+                  viewMode === "smart"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300"
+                    : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                }`}
+              >
+                <WandSparkles size={15} />
+                <span className="hidden sm:inline">Smart view</span>
+              </button>
+              <button
+                type="button"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            </div>
 
-              return (
-                <button
-                  key={categoryId}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => chooseCategory(categoryId)}
-                  className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                    active
-                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
-                      : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+            <div
+              className={`relative min-h-0 bg-slate-100 dark:bg-slate-950 ${
+                isFullscreen
+                  ? "flex-1 overflow-hidden p-0"
+                  : "h-[clamp(520px,68vh,860px)] p-3"
+              }`}
+            >
+              {["PDF", "DOCX", "PPTX"].includes(getType(selectedMaterial)) ? (
+                <iframe
+                  key={`${selectedMaterialId}-${pageNumber}-${previewZoom}-${isFullscreen}`}
+                  title={safeTitle(selectedMaterial)}
+                  src={previewSource}
+                  className={`h-full w-full border-0 bg-white ${
+                    isFullscreen ? "rounded-none" : "rounded-xl"
                   }`}
-                >
-                  <span>{item.emoji || "📚"}</span>
-                  <span>{item.name}</span>
-                  <small
-                    className={`grid h-5 min-w-5 place-items-center rounded-md px-1 text-[10px] ${
-                      active
-                        ? "bg-white dark:bg-slate-900"
-                        : "bg-slate-100 dark:bg-slate-800"
-                    }`}
-                  >
-                    {materialCountByCategory[categoryId] || 0}
-                  </small>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                  allowFullScreen
+                />
+              ) : (
+                <div className="grid h-full min-h-[520px] place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
+                  <div>
+                    <FolderOpen className="mx-auto text-indigo-500" size={40} />
+                    <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
+                      Preview is not available for this file
+                    </h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+                      PDF, DOCX, and PPTX files can be viewed in the secure viewer.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
+            <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
+              <button
+                className={secondaryButtonClass}
+                onClick={() => setPageNumber((value) => Math.max(1, value - 1))}
+              >
+                <ArrowLeft size={16} /> Previous
+              </button>
+              <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                Viewer page {pageNumber}
+              </span>
+              <button
+                className={secondaryButtonClass}
+                onClick={() => setPageNumber((value) => value + 1)}
+              >
+                Next <ArrowRight size={16} />
+              </button>
+            </div>
+          </section>
+
+          <aside className={`${panelClass} flex min-h-[680px] flex-col overflow-hidden`}>
+            <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+                  <BrainCircuit size={19} />
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    AI Study Assistant
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Whole material only · latest exchange only
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  disabled={Boolean(busyAction)}
+                  onClick={() =>
+                    runAssistant({
+                      action: "explain_topic",
+                      language: "english",
+                      prompt: "Explain the topic in English.",
+                    })
+                  }
+                  className={primaryButtonClass}
+                >
+                  <FileText size={16} />
+                  {busyAction === "explain_topic-english"
+                    ? "Explaining..."
+                    : "Explain topic in English"}
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(busyAction)}
+                  onClick={() =>
+                    runAssistant({
+                      action: "explain_topic",
+                      language: "myanmar",
+                      prompt: "အကြောင်းအရာတစ်ခုလုံးကို မြန်မာဘာသာဖြင့် ရှင်းပြပါ။",
+                    })
+                  }
+                  className={secondaryButtonClass}
+                >
+                  <Languages size={16} />
+                  {busyAction === "explain_topic-myanmar"
+                    ? "ရှင်းပြနေသည်..."
+                    : "မြန်မာဘာသာဖြင့် ရှင်းပြရန်"}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-auto bg-slate-50/50 p-4 dark:bg-slate-950/30">
+              {!exchange.length ? (
+                <div className="grid min-h-64 place-items-center text-center">
+                  <div>
+                    <Bot className="mx-auto text-indigo-400" size={34} />
+                    <p className="mt-3 text-sm font-bold text-slate-800 dark:text-white">
+                      One focused AI exchange
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Use a language button or ask one question. A new request
+                      replaces the previous conversation.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                exchange.map((entry, index) => (
+                  <ChatBubble key={`${entry.role}-${index}`} entry={entry} />
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+              <div className="flex gap-2">
+                <textarea
+                  className={`${textareaClass} min-h-11 resize-none`}
+                  rows="2"
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="Ask about the whole material..."
+                />
+                <button
+                  type="button"
+                  disabled={!question.trim() || Boolean(busyAction)}
+                  onClick={() =>
+                    runAssistant({
+                      action: "question",
+                      language: "auto",
+                      prompt: question.trim(),
+                    })
+                  }
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white disabled:opacity-50"
+                  aria-label="Ask question"
+                >
+                  <Send size={17} />
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  const sectionTabs = [
+    {
+      id: "materials",
+      label: "Materials",
+      icon: FileText,
+      count: categoryMaterials.length,
+    },
+    {
+      id: "flashcards",
+      label: "Flashcards",
+      icon: Layers3,
+      count: categoryCards.length,
+    },
+    {
+      id: "quiz",
+      label: "Quiz",
+      icon: FileQuestion,
+      count: categoryQuizzes.length,
+    },
+  ];
+
+  return (
+    <div className={pageClass}>
+      <PageHeader
+        eyebrow="AI study workspace"
+        title="Study"
+        description="Choose a category, then switch between its materials, flashcards, and stored AI quizzes."
+        action={
+          <button
+            className={secondaryButtonClass}
+            onClick={() => onNavigate?.("material")}
+          >
+            <Plus size={17} /> Upload material
+          </button>
+        }
+      />
+
+      <div
+        className="mb-3 flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900"
+        role="tablist"
+        aria-label="Study categories"
+      >
+        {categories.map((item) => {
+          const categoryId = safeId(item);
+          const active = selectedCategoryId === categoryId;
+          return (
+            <button
+              key={categoryId}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => chooseCategory(categoryId)}
+              className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                active
+                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                  : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+            >
+              <span>{item.emoji || "📚"}</span>
+              <span>{item.name}</span>
+              <small
+                className={`grid h-5 min-w-5 place-items-center rounded-md px-1 text-[10px] ${
+                  active
+                    ? "bg-white dark:bg-slate-900"
+                    : "bg-slate-100 dark:bg-slate-800"
+                }`}
+              >
+                {materialCountByCategory[categoryId] || 0}
+              </small>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900">
+        {sectionTabs.map(({ id, label, icon: Icon, count }) => {
+          const active = studySection === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => chooseSection(id)}
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:text-sm ${
+                active
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              <Icon size={17} />
+              <span>{label}</span>
+              <span
+                className={`rounded-md px-1.5 py-0.5 text-[10px] ${
+                  active
+                    ? "bg-white/15"
+                    : "bg-slate-100 dark:bg-slate-800"
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {studySection === "materials" && (
         <section className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-950 dark:text-white">
-                Choose a {selectedCategory?.name || "study"} material
+                {selectedCategory?.emoji} {selectedCategory?.name} materials
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Only materials assigned to the selected category are shown.
+                Search and open only materials assigned to this category.
               </p>
             </div>
-
             <label className="relative block w-full sm:max-w-xs">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -360,26 +682,28 @@ export default function StudyPage({
             </label>
           </div>
 
-          {filteredMaterials.length > 0 ? (
+          {filteredMaterials.length ? (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
               {filteredMaterials.map((material) => (
                 <button
                   key={safeId(material)}
                   type="button"
-                  onClick={() => setSelectedMaterialId(safeId(material))}
+                  onClick={() => {
+                    setSelectedMaterialId(safeId(material));
+                    setPageNumber(1);
+                    setExchange([]);
+                  }}
                   className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-500/5"
                 >
                   <MaterialBadge material={material} />
-
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-slate-900 group-hover:text-indigo-700 dark:text-white dark:group-hover:text-indigo-300">
                       {safeTitle(material)}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">
-                      Open viewer and AI assistant
+                      Open secure viewer and whole-material AI assistant
                     </p>
                   </div>
-
                   <ArrowRight
                     size={18}
                     className="text-slate-300 transition group-hover:text-indigo-500"
@@ -393,206 +717,52 @@ export default function StudyPage({
                 title={
                   searchTerm.trim()
                     ? "No matching materials"
-                    : `No materials in ${selectedCategory?.name || "this category"}`
+                    : `No materials in ${selectedCategory?.name}`
                 }
                 message={
                   searchTerm.trim()
-                    ? "Try another search word or choose a different category."
-                    : "Upload a material and assign it to this category before studying."
+                    ? "Try another search word."
+                    : "Upload a material and assign it to this category."
                 }
                 action={
                   <button
-                    type="button"
                     className={secondaryButtonClass}
                     onClick={() => onNavigate?.("material")}
                   >
-                    <Plus size={17} />
-                    Add material
+                    <Plus size={17} /> Add material
                   </button>
                 }
               />
             </div>
           )}
         </section>
-      </div>
-    );
-  }
+      )}
 
-  const actions = [
-    ["explain", "Explain this", MessageSquareText],
-    ["summarize", "Summarize", FileText],
-    ["simplify", "Make simpler", WandSparkles],
-    ["example", "Give example", Sparkles],
-    ["quiz", "Create quiz", CheckCircle2],
-  ];
+      {studySection === "flashcards" && (
+        <StudyFlashcards
+          key={`flashcards-${selectedCategoryId}`}
+          category={selectedCategory}
+          materials={categoryMaterials}
+          cards={categoryCards}
+          onGenerateFlashcards={onGenerateFlashcards}
+          onReviewFlashcard={onReviewFlashcard}
+          onDeleteFlashcard={onDeleteFlashcard}
+          onNavigate={onNavigate}
+        />
+      )}
 
-  return (
-    <div className={pageClass}>
-      <PageHeader
-        eyebrow="AI study workspace"
-        title="Study"
-        description="Read, select content, ask questions, and create learning activities from one place."
-        action={<button className={secondaryButtonClass} onClick={() => setSelectedMaterialId("")}><ArrowLeft size={17} /> Category materials</button>}
-      />
-
-      <div className="mb-3 grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
-        <section
-          ref={viewerRef}
-          className={`${panelClass} min-w-0 overflow-hidden ${
-            isFullscreen
-              ? "flex h-screen w-screen flex-col !rounded-none !border-0 bg-white dark:bg-slate-950"
-              : ""
-          }`}
-        >
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
-            <MaterialBadge material={selectedMaterial} />
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900 dark:text-white">
-              {safeTitle(selectedMaterial)}
-            </span>
-
-            <button
-              type="button"
-              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
-              onClick={() => changeZoom(-10)}
-              aria-label="Zoom out"
-              title="Zoom out"
-            >
-              <Minus size={16} />
-            </button>
-
-            <span className="w-14 text-center text-xs font-semibold text-slate-500 dark:text-slate-300">
-              {viewMode === "smart" ? "Auto" : `${zoom}%`}
-            </span>
-
-            <button
-              type="button"
-              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
-              onClick={() => changeZoom(10)}
-              aria-label="Zoom in"
-              title="Zoom in"
-            >
-              <Plus size={16} />
-            </button>
-
-            <button
-              type="button"
-              onClick={enableSmartView}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition ${
-                viewMode === "smart"
-                  ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300"
-                  : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              }`}
-              aria-pressed={viewMode === "smart"}
-              title="Automatically fit the document to the available viewer space"
-            >
-              <WandSparkles size={15} />
-              <span className="hidden sm:inline">Smart view</span>
-            </button>
-
-            <button
-              type="button"
-              className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 dark:border-slate-700"
-              onClick={toggleFullscreen}
-              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          </div>
-
-          <div
-            onMouseUp={captureSelection}
-            className={`relative min-h-0 bg-slate-100 dark:bg-slate-950 ${
-              isFullscreen
-                ? "flex-1 overflow-hidden p-0"
-                : "h-[clamp(520px,68vh,860px)] p-3"
-            }`}
-          >
-            {["PDF", "DOCX", "PPTX"].includes(getType(selectedMaterial)) ? (
-              <iframe
-                key={`${selectedMaterialId}-${pageNumber}-${previewZoom}-${isFullscreen}`}
-                title={safeTitle(selectedMaterial)}
-                src={previewSource}
-                className={`h-full w-full border-0 bg-white ${
-                  isFullscreen ? "rounded-none" : "rounded-xl"
-                }`}
-                allowFullScreen
-              />
-            ) : (
-              <div className="grid h-full min-h-[520px] place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
-                <div>
-                  <FolderOpen className="mx-auto text-indigo-500" size={40} />
-                  <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">Preview is not available for this file</h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">PDF, DOCX and PPTX files can be viewed here. Convert other file types to one of those formats first.</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-800">
-            <button className={secondaryButtonClass} onClick={() => setSelectedText(window.getSelection?.()?.toString().trim() || "")}><Highlighter size={16} /> Capture selection</button>
-            <button className={secondaryButtonClass} onClick={() => setBookmarked((value) => !value)}><Bookmark size={16} /> {bookmarked ? "Bookmarked" : "Bookmark"}</button>
-            <button className={secondaryButtonClass} onClick={() => setPageNumber((value) => Math.max(1, value - 1))}><ArrowLeft size={16} /> Previous</button>
-            <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">Page {pageNumber}</span>
-            <button className={secondaryButtonClass} onClick={() => setPageNumber((value) => value + 1)}>Next <ArrowRight size={16} /></button>
-          </div>
-        </section>
-
-        <aside className={`${panelClass} flex min-h-[680px] flex-col overflow-hidden`}>
-          <div className="border-b border-slate-200 p-4 dark:border-slate-800">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"><Sparkles size={19} /></span>
-                <div><h2 className="text-sm font-bold text-slate-900 dark:text-white">AI Study Assistant</h2><p className="text-[11px] text-slate-400">OpenRouter first, Groq fallback</p></div>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">AI Ready</span>
-            </div>
-
-            <div className="mt-4 rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Selected content</p>
-              <p className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-600 dark:text-slate-300">{selectedText || "Select a paragraph in the viewer, or ask about the whole material."}</p>
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {actions.map(([action, label, Icon]) => (
-                <button key={action} type="button" disabled={Boolean(busyAction)} onClick={() => runAiAction(action)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300">
-                  <Icon size={15} /> {busyAction === action ? "Working..." : label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-[1fr_90px] gap-2">
-              <select className={selectClass} value={cardCount} onChange={(event) => setCardCount(Number(event.target.value))}>
-                <option value="3">3 flashcards</option><option value="5">5 flashcards</option><option value="10">10 flashcards</option>
-              </select>
-              <button type="button" disabled={Boolean(busyAction)} onClick={generateFlashcards} className={primaryButtonClass}><Sparkles size={15} /> {busyAction === "flashcards" ? "..." : "Cards"}</button>
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-3 overflow-auto p-4">
-            {messages.length === 0 ? (
-              <div className="grid min-h-56 place-items-center text-center">
-                <div><Bot className="mx-auto text-indigo-400" size={34} /><p className="mt-3 text-sm font-bold text-slate-800 dark:text-white">Ask about your material</p><p className="mt-1 text-xs leading-5 text-slate-400">AI answers are limited to the uploaded content and include source references when available.</p></div>
-              </div>
-            ) : messages.map((message, index) => <AnswerCard key={index} message={message} />)}
-          </div>
-
-          <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-            <div className="flex gap-2">
-              <textarea className={`${textareaClass} min-h-11 resize-none`} rows="2" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about this material..." />
-              <button type="button" disabled={!question.trim() || Boolean(busyAction)} onClick={() => runAiAction("question", question.trim())} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white disabled:opacity-50"><Send size={17} /></button>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      <section className={`${panelClass} p-4`}>
-        <div className="flex items-center gap-3">
-          <NotebookPen className="text-indigo-500" size={19} />
-          <div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Personal notes</h3><p className="text-[11px] text-slate-400">Keep a note beside the current material.</p></div>
-        </div>
-        <textarea className={`${textareaClass} mt-3`} rows="3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write a note about this page or concept..." />
-      </section>
+      {studySection === "quiz" && (
+        <StudyQuiz
+          key={`quiz-${selectedCategoryId}`}
+          category={selectedCategory}
+          materials={categoryMaterials}
+          quizSets={categoryQuizzes}
+          onGenerateQuiz={onGenerateQuiz}
+          onSubmitQuiz={onSubmitQuiz}
+          onDeleteQuiz={onDeleteQuiz}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 }

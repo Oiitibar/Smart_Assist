@@ -32,22 +32,18 @@ exports.askMaterial = async (req, res) => {
   const {
     action = "question",
     question = "",
-    selectedText = "",
-    pageNumber = null,
-    scope = "document",
+    language = "auto",
   } = req.body;
 
-  const allowedActions = new Set([
-    "question",
-    "explain",
-    "summarize",
-    "simplify",
-    "example",
-    "quiz",
-  ]);
+  const allowedActions = new Set(["question", "explain_topic"]);
+  const allowedLanguages = new Set(["auto", "english", "myanmar"]);
 
   if (!allowedActions.has(action)) {
     return res.status(400).json({ message: "Unsupported study action" });
+  }
+
+  if (!allowedLanguages.has(language)) {
+    return res.status(400).json({ message: "Unsupported answer language" });
   }
 
   const material = await Material.findOne({
@@ -60,34 +56,26 @@ exports.askMaterial = async (req, res) => {
   }
 
   const cleanQuestion = String(question || "").trim().slice(0, 2_000);
-  const cleanSelection = String(selectedText || "").trim().slice(0, 12_000);
 
   if (action === "question" && !cleanQuestion) {
     return res.status(400).json({ message: "Question is required" });
   }
 
-  const parsed = cleanSelection
-    ? { text: cleanSelection, truncated: false }
-    : await extractMaterialText(material);
-
+  // Always extract and use the whole material. The assistant is intentionally
+  // independent from the current PDF page and any viewer selection.
+  const parsed = await extractMaterialText(material);
   const result = await answerDocumentQuestion({
     action,
     question: cleanQuestion,
     sourceText: parsed.text,
     materialTitle: material.title,
-    pageNumber,
-    scope,
+    language,
   });
 
   return res.json({
     answer: result.answer,
     provider: result.provider,
     model: result.model,
-    sources: [
-      {
-        title: material.title,
-        pageNumber: Number(pageNumber) || null,
-      },
-    ],
+    sources: [{ title: material.title }],
   });
 };

@@ -8,6 +8,7 @@ const createHttpError = (status, message) => {
 };
 
 const uploadsDirectory = path.resolve(__dirname, "..", "uploads");
+const materialUploadsDirectory = path.join(uploadsDirectory, "materials");
 
 const getMaterialExtension = (material) => {
   const value =
@@ -31,13 +32,14 @@ const resolveMaterialPath = (material) => {
 
   // basename prevents a database value from escaping backend/uploads.
   const safeName = path.basename(storedName);
-  const filePath = path.resolve(uploadsDirectory, safeName);
+  const preferredPath = path.resolve(materialUploadsDirectory, safeName);
+  const legacyPath = path.resolve(uploadsDirectory, safeName);
 
-  if (!filePath.startsWith(`${uploadsDirectory}${path.sep}`)) {
+  if (!preferredPath.startsWith(`${materialUploadsDirectory}${path.sep}`)) {
     throw createHttpError(400, "Invalid material file path");
   }
 
-  return filePath;
+  return require("fs").existsSync(preferredPath) ? preferredPath : legacyPath;
 };
 
 const normalizeText = (value) =>
@@ -167,7 +169,7 @@ const extractMaterialText = async (material) => {
       422,
       extension === ".pdf"
         ? "The PDF contains too little extractable text. It may be scanned and require OCR."
-        : "The material contains too little text to create useful flashcards.",
+        : "The material contains too little text to create useful AI study content.",
     );
   }
 

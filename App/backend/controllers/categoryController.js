@@ -1,6 +1,7 @@
 const Category = require("../models/Category");
 const Material = require("../models/Material");
 const FlashcardSet = require("../models/FlashcardSet");
+const QuizSet = require("../models/QuizSet");
 
 exports.getCategories = async (req, res) => {
   const categories = await Category.find({ userId: req.user._id })
@@ -64,6 +65,7 @@ exports.deleteCategory = async (req, res) => {
       { $set: { categoryId: null } },
     ),
     FlashcardSet.deleteMany({ userId: req.user._id, categoryId: category._id }),
+    QuizSet.deleteMany({ userId: req.user._id, categoryId: category._id }),
   ]);
 
   return res.json({ message: "Category deleted" });

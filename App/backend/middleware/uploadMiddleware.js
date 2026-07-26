@@ -2,36 +2,33 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadDir = path.join(__dirname, "..", "uploads");
+const uploadsRoot = path.join(__dirname, "..", "uploads");
+const materialUploadDir = path.join(uploadsRoot, "materials");
+const avatarUploadDir = path.join(uploadsRoot, "avatars");
 
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+for (const directory of [materialUploadDir, avatarUploadDir]) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+const createStorage = (destination) =>
+  multer.diskStorage({
+    destination: (req, file, cb) => cb(null, destination),
+    filename: (req, file, cb) => {
+      const extension = path.extname(file.originalname).toLowerCase();
+      const safeBase = path
+        .basename(file.originalname, extension)
+        .replace(/[^a-zA-Z0-9-_]/g, "-")
+        .replace(/-+/g, "-")
+        .slice(0, 80);
 
-  filename: (req, file, cb) => {
-    const extension = path
-      .extname(file.originalname)
-      .toLowerCase();
-
-    const safeBase = path
-      .basename(file.originalname, extension)
-      .replace(/[^a-zA-Z0-9-_]/g, "-")
-      .replace(/-+/g, "-")
-      .slice(0, 80);
-
-    cb(
-      null,
-      `${Date.now()}-${Math.round(
-        Math.random() * 1e9,
-      )}-${safeBase}${extension}`,
-    );
-  },
-});
+      cb(
+        null,
+        `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeBase}${extension}`,
+      );
+    },
+  });
 
 const allowedMaterialTypes = new Set([
   "application/pdf",
@@ -51,17 +48,12 @@ const allowedAvatarTypes = new Set([
   "image/webp",
 ]);
 
-const createUpload = ({ allowedTypes, fileSize }) =>
+const createUpload = ({ allowedTypes, fileSize, destination }) =>
   multer({
-    storage,
-    limits: {
-      fileSize,
-    },
+    storage: createStorage(destination),
+    limits: { fileSize },
     fileFilter: (req, file, cb) => {
-      if (allowedTypes.has(file.mimetype)) {
-        return cb(null, true);
-      }
-
+      if (allowedTypes.has(file.mimetype)) return cb(null, true);
       const error = new Error("Unsupported file type.");
       error.status = 400;
       return cb(error);
@@ -71,11 +63,13 @@ const createUpload = ({ allowedTypes, fileSize }) =>
 const materialUpload = createUpload({
   allowedTypes: allowedMaterialTypes,
   fileSize: 50 * 1024 * 1024,
+  destination: materialUploadDir,
 });
 
 const avatarUpload = createUpload({
   allowedTypes: allowedAvatarTypes,
   fileSize: 2 * 1024 * 1024,
+  destination: avatarUploadDir,
 });
 
 module.exports = materialUpload;

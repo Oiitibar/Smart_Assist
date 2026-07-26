@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const path = require("path");
 const dotenv = require("dotenv");
 const multer = require("multer");
+const fs = require("fs");
 
 dotenv.config();
 
@@ -16,8 +17,10 @@ const timetableRoutes = require("./routes/timetableRoutes");
 const materialRoutes = require("./routes/materialRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const flashcardRoutes = require("./routes/flashcardRoutes");
-const documentAiRoutes =require("./routes/documentAiRoutes");
+const quizRoutes = require("./routes/quizRoutes");
+const documentAiRoutes = require("./routes/documentAiRoutes");
 const taskRoutes = require("./routes/taskRoutes");
+const User = require("./models/User");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -51,10 +54,31 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Only profile avatars are public. Study documents remain private and are
+// served exclusively through authenticated /api/materials/:materialId/view.
 app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "uploads"))
+  "/uploads/avatars",
+  express.static(path.join(__dirname, "uploads", "avatars"))
 );
+
+// Backward-compatible access for avatars uploaded by older project versions.
+// A legacy file is served only when it is referenced as a user's avatar, so
+// old study materials in uploads/ are not exposed as public static files.
+app.get("/uploads/:filename", async (req, res, next) => {
+  try {
+    const filename = path.basename(req.params.filename || "");
+    if (!filename) return res.status(404).end();
+
+    const avatarOwner = await User.exists({ avatarUrl: `/uploads/${filename}` });
+    if (!avatarOwner) return res.status(404).end();
+
+    const legacyPath = path.join(__dirname, "uploads", filename);
+    if (!fs.existsSync(legacyPath)) return res.status(404).end();
+    return res.sendFile(legacyPath);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -67,12 +91,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/timetable", timetableRoutes);
+app.use("/api/materials", documentAiRoutes);
 app.use("/api/materials", materialRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/flashcards", flashcardRoutes);
+app.use("/api/quizzes", quizRoutes);
 app.use("/api/tasks", taskRoutes);
-app.use("/api/materials", documentAiRoutes);
-app.use("/api/materials", materialRoutes);
 // Route not found
 app.use((req, res) => {
   res.status(404).json({

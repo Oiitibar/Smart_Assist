@@ -76,7 +76,7 @@ exports.uploadAvatar = async (req, res) => {
   const previousAvatar = req.user.avatarUrl;
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { avatarUrl: `/uploads/${req.file.filename}` },
+    { avatarUrl: `/uploads/avatars/${req.file.filename}` },
     { new: true },
   );
 
@@ -84,8 +84,13 @@ exports.uploadAvatar = async (req, res) => {
     const previousName = path.basename(previousAvatar);
     const newName = path.basename(req.file.filename);
     if (previousName !== newName) {
-      const previousPath = path.join(__dirname, "..", "uploads", previousName);
-      await fs.promises.unlink(previousPath).catch(() => {});
+      const candidates = [
+        path.join(__dirname, "..", "uploads", "avatars", previousName),
+        path.join(__dirname, "..", "uploads", previousName),
+      ];
+      await Promise.all(
+        candidates.map((filePath) => fs.promises.unlink(filePath).catch(() => {})),
+      );
     }
   }
 

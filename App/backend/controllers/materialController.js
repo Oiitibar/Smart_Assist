@@ -3,6 +3,7 @@ const path = require("path");
 const Material = require("../models/Material");
 const Category = require("../models/Category");
 const FlashcardSet = require("../models/FlashcardSet");
+const QuizSet = require("../models/QuizSet");
 const { deleteMaterialPreview } = require("../services/documentPreviewService");
 
 const getFileType = (filename) => {
@@ -17,14 +18,15 @@ const getFileType = (filename) => {
 const removeStoredFile = async (storedName) => {
   if (!storedName) return;
 
-  const fullPath = path.join(
-    __dirname,
-    "..",
-    "uploads",
-    path.basename(storedName),
-  );
+  const safeName = path.basename(storedName);
+  const candidates = [
+    path.join(__dirname, "..", "uploads", "materials", safeName),
+    path.join(__dirname, "..", "uploads", safeName),
+  ];
 
-  await fs.promises.unlink(fullPath).catch(() => {});
+  await Promise.all(
+    candidates.map((fullPath) => fs.promises.unlink(fullPath).catch(() => {})),
+  );
 };
 
 exports.getMaterials = async (req, res) => {
@@ -72,7 +74,8 @@ exports.uploadMaterial = async (req, res) => {
       ).trim(),
       originalName: req.file.originalname,
       storedName: req.file.filename,
-      fileUrl: `/uploads/${req.file.filename}`,
+      // This is an internal identifier, not a public static URL.
+      fileUrl: `/private-materials/${req.file.filename}`,
       fileType: getFileType(req.file.originalname),
       mimeType: req.file.mimetype,
       size: req.file.size,
@@ -127,6 +130,26 @@ exports.assignMaterialCategory = async (req, res) => {
     });
   }
 
+  if (categoryId) {
+    await Promise.all([
+      FlashcardSet.updateMany(
+        { userId: req.user._id, materialId: material._id },
+        { $set: { categoryId } },
+      ),
+      QuizSet.updateMany(
+        { userId: req.user._id, materialId: material._id },
+        { $set: { categoryId } },
+      ),
+    ]);
+  } else {
+    // Generated study data is category-bound. Remove it when a material is
+    // deliberately made uncategorized so it cannot appear under a wrong tab.
+    await Promise.all([
+      FlashcardSet.deleteMany({ userId: req.user._id, materialId: material._id }),
+      QuizSet.deleteMany({ userId: req.user._id, materialId: material._id }),
+    ]);
+  }
+
   return res.json(material);
 };
 
@@ -146,6 +169,7 @@ exports.deleteMaterial = async (req, res) => {
     removeStoredFile(material.storedName),
     deleteMaterialPreview(material._id),
     FlashcardSet.deleteMany({ userId: req.user._id, materialId: material._id }),
+    QuizSet.deleteMany({ userId: req.user._id, materialId: material._id }),
   ]);
 
   return res.json({

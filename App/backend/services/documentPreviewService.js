@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 
 const backendDirectory = path.resolve(__dirname, "..");
 const uploadsDirectory = path.join(backendDirectory, "uploads");
+const materialUploadsDirectory = path.join(uploadsDirectory, "materials");
 const previewsDirectory = path.join(backendDirectory, "previews");
 const conversionLocks = new Map();
 
@@ -30,13 +31,17 @@ const createHttpError = (message, status = 500, code = "PREVIEW_ERROR") => {
 const resolveStoredMaterialPath = (material) => {
   const storedName = material?.storedName || path.basename(String(material?.fileUrl || ""));
   const safeName = path.basename(String(storedName || ""));
-  const filePath = path.resolve(uploadsDirectory, safeName);
+  const preferredPath = path.resolve(materialUploadsDirectory, safeName);
+  const legacyPath = path.resolve(uploadsDirectory, safeName);
 
-  if (!safeName || !filePath.startsWith(`${uploadsDirectory}${path.sep}`)) {
+  if (
+    !safeName ||
+    !preferredPath.startsWith(`${materialUploadsDirectory}${path.sep}`)
+  ) {
     throw createHttpError("Invalid material file path", 400, "INVALID_MATERIAL_PATH");
   }
 
-  return filePath;
+  return fs.existsSync(preferredPath) ? preferredPath : legacyPath;
 };
 
 const getMaterialExtension = (material, sourcePath) => {

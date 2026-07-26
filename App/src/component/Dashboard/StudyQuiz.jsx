@@ -305,9 +305,9 @@ export default function StudyQuiz({
               )}
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+            <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
               <button
-                className={secondaryButtonClass}
+                className={`${secondaryButtonClass} justify-self-start`}
                 onClick={() => setQuestionIndex((value) => Math.max(0, value - 1))}
                 disabled={questionIndex === 0}
               >
@@ -315,12 +315,31 @@ export default function StudyQuiz({
               </button>
 
               {result ? (
-                <button className={secondaryButtonClass} onClick={resetAttempt}>
+                <button
+                  className={`${secondaryButtonClass} justify-self-start sm:justify-self-center`}
+                  onClick={resetAttempt}
+                >
                   <RotateCcw size={17} /> Retake quiz
+                </button>
+              ) : (
+                <span className="hidden sm:block" />
+              )}
+
+              {result ? (
+                <button
+                  className={`${primaryButtonClass} justify-self-start sm:justify-self-end`}
+                  onClick={() =>
+                    setQuestionIndex((value) =>
+                      Math.min(questions.length - 1, value + 1),
+                    )
+                  }
+                  disabled={questionIndex === questions.length - 1}
+                >
+                  Next <ArrowRight size={17} />
                 </button>
               ) : questionIndex === questions.length - 1 ? (
                 <button
-                  className={primaryButtonClass}
+                  className={`${primaryButtonClass} justify-self-start sm:justify-self-end`}
                   onClick={submit}
                   disabled={answeredCount !== questions.length || submitting}
                 >
@@ -329,7 +348,7 @@ export default function StudyQuiz({
                 </button>
               ) : (
                 <button
-                  className={primaryButtonClass}
+                  className={`${primaryButtonClass} justify-self-start sm:justify-self-end`}
                   onClick={() =>
                     setQuestionIndex((value) =>
                       Math.min(questions.length - 1, value + 1),

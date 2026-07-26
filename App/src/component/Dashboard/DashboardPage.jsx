@@ -388,7 +388,9 @@ export default function DashboardPage() {
       showNotice("Timetable entry added");
       return normalized;
     } catch (requestError) {
-      showError(requestError, "Could not add timetable entry");
+      if (![400, 409].includes(requestError?.response?.status)) {
+        showError(requestError, "Could not add timetable entry");
+      }
       throw requestError;
     }
   };

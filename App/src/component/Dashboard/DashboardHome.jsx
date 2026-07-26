@@ -18,11 +18,19 @@ import {
   secondaryButtonClass,
 } from "./ui";
 
-const dayLabel = new Intl.DateTimeFormat("en-US", {
+const dayFormatter = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
   month: "long",
   day: "numeric",
-}).format(new Date());
+});
+
+function getGreeting(date) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 21) return "Good evening";
+  return "Good night";
+}
 
 const shortDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const longDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -57,6 +65,7 @@ export default function DashboardHome({
   categories,
   materials,
   flashcards,
+  quizzes,
   schedules,
   tasks,
   onNavigate,
@@ -72,8 +81,22 @@ export default function DashboardHome({
     return () => window.clearInterval(timer);
   }, []);
 
-  const cardsCount = Object.values(flashcards).reduce((total, cards) => total + cards.length, 0);
-  const flashcardCategories = categories.filter((category) => (flashcards[category.id] || []).length > 0).length;
+  const cardsCount = Object.values(flashcards || {}).reduce(
+    (total, cards) => total + cards.length,
+    0,
+  );
+  const reviewedCardsCount = Object.values(flashcards || {}).reduce(
+    (total, cards) => total + cards.filter((card) => card.reviewed).length,
+    0,
+  );
+  const quizSets = Object.values(quizzes || {}).flat();
+  const quizCount = quizSets.length;
+  const quizAttemptCount = quizSets.reduce(
+    (total, quiz) => total + (quiz.attempts?.length || 0),
+    0,
+  );
+  const greeting = getGreeting(now);
+  const dayLabel = dayFormatter.format(now);
 
   const todayShort = shortDays[now.getDay()];
   const todayLong = longDays[now.getDay()];
@@ -115,8 +138,8 @@ export default function DashboardHome({
     <div className={pageClass}>
       <PageHeader
         eyebrow={dayLabel}
-        title={`Good morning, ${(user?.name || user?.fullName || "Student").split(" ")[0]} 👋`}
-        description="Your timetable, study focus, flashcards, and tasks are ready for today."
+        title={`${greeting}, ${(user?.name || user?.fullName || "Student").split(" ")[0]} 👋`}
+        description="Your timetable, study resources, quizzes, and tasks are ready for today."
       />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -219,40 +242,47 @@ export default function DashboardHome({
         </aside>
       </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
               <Layers3 size={21} />
             </span>
             <div>
-              <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">Flashcards</h2>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Your generated and manual cards</p>
+              <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">Study status</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Materials, flashcards, quizzes, and saved reviews</p>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-4 dark:border-indigo-900/60 dark:from-indigo-500/10 dark:to-slate-900">
-            <p className="text-4xl font-extrabold tracking-tight text-indigo-600 dark:text-indigo-300">{cardsCount}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">cards ready to review</p>
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3.5 dark:border-sky-900/60 dark:bg-sky-500/10">
+              <BookOpen className="text-sky-600 dark:text-sky-300" size={18} />
+              <p className="mt-3 text-2xl font-extrabold text-slate-950 dark:text-white">{materials.length}</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Materials</p>
+            </div>
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5 dark:border-indigo-900/60 dark:bg-indigo-500/10">
+              <Layers3 className="text-indigo-600 dark:text-indigo-300" size={18} />
+              <p className="mt-3 text-2xl font-extrabold text-slate-950 dark:text-white">{cardsCount}</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Flashcards</p>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-3.5 dark:border-violet-900/60 dark:bg-violet-500/10">
+              <Target className="text-violet-600 dark:text-violet-300" size={18} />
+              <p className="mt-3 text-2xl font-extrabold text-slate-950 dark:text-white">{quizCount}</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">AI quizzes</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5 dark:border-emerald-900/60 dark:bg-emerald-500/10">
+              <Check className="text-emerald-600 dark:text-emerald-300" size={18} />
+              <p className="mt-3 text-2xl font-extrabold text-slate-950 dark:text-white">{quizAttemptCount + reviewedCardsCount}</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Saved reviews</p>
+            </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
-              <p className="text-lg font-bold text-slate-950 dark:text-white">{flashcardCategories}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">categories</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950">
-              <p className="text-lg font-bold text-slate-950 dark:text-white">{materials.length}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">materials</p>
-            </div>
-          </div>
-
-          <button className={`${primaryButtonClass} mt-3 w-full`} onClick={() => onNavigate("flashcard")}>
-            Review cards <ArrowRight size={16} />
+          <button className={`${primaryButtonClass} mt-3 w-full`} onClick={() => onNavigate("study")}>
+            Open Study <ArrowRight size={16} />
           </button>
         </article>
 
-        <article className={`${panelClass} p-4 sm:p-5 xl:col-span-2`}>
+        <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">Tasks</h2>

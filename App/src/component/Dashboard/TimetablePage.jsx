@@ -27,12 +27,39 @@ const longDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const times = ["8 AM", "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM"];
 const colors = ["#4f46e5", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e"];
 
+function timeToMinutes(value) {
+  if (!value || typeof value !== "string") return null;
+
+  const normalized = value.trim().toUpperCase();
+  const twelveHour = normalized.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (twelveHour) {
+    let hour = Number(twelveHour[1]);
+    const minute = Number(twelveHour[2]);
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+    if (hour === 12) hour = 0;
+    if (twelveHour[3] === "PM") hour += 12;
+    return hour * 60 + minute;
+  }
+
+  const twentyFourHour = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourHour) {
+    const hour = Number(twentyFourHour[1]);
+    const minute = Number(twentyFourHour[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return hour * 60 + minute;
+  }
+
+  return null;
+}
+
 function timePosition(time) {
-  const [raw, modifier] = String(time).trim().split(" ");
-  let [hour, minute = 0] = raw.split(":").map(Number);
-  if (modifier === "PM" && hour !== 12) hour += 12;
-  if (modifier === "AM" && hour === 12) hour = 0;
-  return Math.max(0, (hour + minute / 60 - 8) * 68);
+  const minutes = timeToMinutes(time);
+  if (minutes === null) return 0;
+  return Math.max(0, ((minutes - 8 * 60) / 60) * 68);
+}
+
+function schedulesOverlap(startA, endA, startB, endB) {
+  return startA < endB && endA > startB;
 }
 
 function getWeekDates() {
@@ -51,6 +78,7 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
   const [showAdd, setShowAdd] = useState(false);
   const [view, setView] = useState(defaultView === "List View" ? "list" : "week");
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [form, setForm] = useState({
     title: "",
@@ -82,6 +110,36 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
   const submit = async (event) => {
     event.preventDefault();
     if (!form.title.trim() || saving) return;
+
+    setFormError("");
+    const startMinutes = timeToMinutes(form.start);
+    const endMinutes = timeToMinutes(form.end);
+
+    if (startMinutes === null || endMinutes === null) {
+      setFormError("Enter a valid time such as 01:00 PM or 13:00.");
+      return;
+    }
+
+    if (endMinutes <= startMinutes) {
+      setFormError("End time must be later than start time.");
+      return;
+    }
+
+    const conflict = schedules.find((item) => {
+      if (item.day !== form.day) return false;
+      const itemStart = timeToMinutes(item.start);
+      const itemEnd = timeToMinutes(item.end);
+      if (itemStart === null || itemEnd === null) return false;
+      return schedulesOverlap(startMinutes, endMinutes, itemStart, itemEnd);
+    });
+
+    if (conflict) {
+      setFormError(
+        `${conflict.title} already uses ${conflict.start}–${conflict.end} on ${form.day}. Choose a non-overlapping time.`,
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       await onAddSchedule({
@@ -91,7 +149,14 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
         teacher: form.teacher.trim() || "Instructor TBA",
       });
       setShowAdd(false);
+      setFormError("");
       setForm((value) => ({ ...value, title: "", room: "", teacher: "" }));
+    } catch (requestError) {
+      setFormError(
+        requestError?.response?.data?.message ||
+          requestError?.message ||
+          "Could not add this timetable entry.",
+      );
     } finally {
       setSaving(false);
     }
@@ -104,7 +169,13 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
         title="Timetable"
         description="Add classes and study sessions in one compact weekly schedule."
         action={
-          <button className={primaryButtonClass} onClick={() => setShowAdd(true)}>
+          <button
+            className={primaryButtonClass}
+            onClick={() => {
+              setFormError("");
+              setShowAdd(true);
+            }}
+          >
             <Plus size={17} /> Add class
           </button>
         }
@@ -279,6 +350,11 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
               <span className="flex items-center gap-1.5"><MapPin size={14} /> Room</span>
               <input className={inputClass} value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} placeholder="Building A · 204" />
             </label>
+            {formError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 sm:col-span-2 dark:border-rose-900/60 dark:bg-rose-500/10 dark:text-rose-300">
+                {formError}
+              </div>
+            )}
             <label className={`${labelClass} sm:col-span-2`}>
               Color
               <div className="flex flex-wrap gap-2">

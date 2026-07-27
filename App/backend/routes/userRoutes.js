@@ -9,5 +9,6 @@ const router = express.Router();
 router.put("/profile", protect, asyncHandler(controller.updateProfile));
 router.put("/preferences", protect, asyncHandler(controller.updatePreferences));
 router.post("/avatar", protect, avatarUpload.single("avatar"), asyncHandler(controller.uploadAvatar));
+router.put("/avatar", protect, asyncHandler(controller.setAvatar));
 
 module.exports = router;

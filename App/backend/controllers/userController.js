@@ -2,6 +2,54 @@ const path = require("path");
 const fs = require("fs");
 const User = require("../models/User");
 
+
+const removeLocalAvatar = async (avatarUrl) => {
+  if (!avatarUrl?.startsWith("/uploads/")) return;
+
+  const filename = path.basename(avatarUrl);
+  const candidates = [
+    path.join(__dirname, "..", "uploads", "avatars", filename),
+    path.join(__dirname, "..", "uploads", filename),
+  ];
+
+  await Promise.all(
+    candidates.map((filePath) => fs.promises.unlink(filePath).catch(() => {})),
+  );
+};
+
+const normalizeFreeAvatarUrl = (rawValue) => {
+  const value = String(rawValue || "").trim();
+  if (!value) return "";
+  if (value.length > 500) {
+    const error = new Error("Avatar URL is too long");
+    error.status = 400;
+    throw error;
+  }
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    const error = new Error("Invalid avatar URL");
+    error.status = 400;
+    throw error;
+  }
+
+  const validPath = /^\/10\.x\/lorelei\/svg\/?$/.test(url.pathname);
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "api.dicebear.com" ||
+    !validPath ||
+    !url.searchParams.get("seed")
+  ) {
+    const error = new Error("Only approved DiceBear avatars can be selected");
+    error.status = 400;
+    throw error;
+  }
+
+  return url.toString();
+};
+
 const userPayload = (user) => ({
   _id: user._id,
   id: user._id,
@@ -74,24 +122,32 @@ exports.uploadAvatar = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: "Avatar image is required" });
 
   const previousAvatar = req.user.avatarUrl;
+  const nextAvatar = `/uploads/avatars/${req.file.filename}`;
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { avatarUrl: `/uploads/avatars/${req.file.filename}` },
+    { avatarUrl: nextAvatar },
     { new: true },
   );
 
-  if (previousAvatar?.startsWith("/uploads/")) {
-    const previousName = path.basename(previousAvatar);
-    const newName = path.basename(req.file.filename);
-    if (previousName !== newName) {
-      const candidates = [
-        path.join(__dirname, "..", "uploads", "avatars", previousName),
-        path.join(__dirname, "..", "uploads", previousName),
-      ];
-      await Promise.all(
-        candidates.map((filePath) => fs.promises.unlink(filePath).catch(() => {})),
-      );
-    }
+  if (previousAvatar !== nextAvatar) {
+    await removeLocalAvatar(previousAvatar);
+  }
+
+  return res.json({ user: userPayload(user), data: { user: userPayload(user) } });
+};
+
+exports.setAvatar = async (req, res) => {
+  const avatarUrl = normalizeFreeAvatarUrl(req.body.avatarUrl);
+  const previousAvatar = req.user.avatarUrl;
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { avatarUrl },
+    { new: true, runValidators: true },
+  );
+
+  if (previousAvatar !== avatarUrl) {
+    await removeLocalAvatar(previousAvatar);
   }
 
   return res.json({ user: userPayload(user), data: { user: userPayload(user) } });

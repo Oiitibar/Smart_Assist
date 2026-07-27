@@ -4,8 +4,36 @@ const FlashcardSet = require("../models/FlashcardSet");
 const QuizSet = require("../models/QuizSet");
 const Task = require("../models/Task");
 const { isSourceSuperAdmin } = require("../config/superAdmins");
+const { deleteUserAccountData } = require("../services/accountCleanupService");
 
 const safeId = (value) => String(value || "");
+
+const INACTIVE_ACCOUNT_DAYS = 30;
+const INACTIVE_ACCOUNT_MS = INACTIVE_ACCOUNT_DAYS * 24 * 60 * 60 * 1000;
+
+const getAccountActivity = (user) =>
+  user.lastActiveAt || user.lastLoginAt || user.createdAt || null;
+
+const getInactivityInfo = (user, currentUserId = "") => {
+  const referenceAt = getAccountActivity(user);
+  const elapsedMs = referenceAt
+    ? Math.max(0, Date.now() - new Date(referenceAt).getTime())
+    : 0;
+  const inactiveDays = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+  const inactiveForMonth = Boolean(referenceAt) && elapsedMs >= INACTIVE_ACCOUNT_MS;
+  const protectedAccount =
+    user.role === "super_admin" || isSourceSuperAdmin(user.email);
+
+  return {
+    referenceAt,
+    inactiveDays,
+    inactiveForMonth,
+    eligibleForDeletion:
+      inactiveForMonth &&
+      !protectedAccount &&
+      safeId(user._id) !== safeId(currentUserId),
+  };
+};
 
 const percentage = (score, total) =>
   total > 0 ? Math.round((score / total) * 100) : null;
@@ -32,7 +60,7 @@ const getAdminOverview = async (req, res) => {
   const [users, allUsers, materials, flashcardSets, quizSets, taskGroups] =
     await Promise.all([
       User.find(filter).sort({ createdAt: -1 }).lean(),
-      User.find({}).select("role lastActiveAt studyData").lean(),
+      User.find({}).select("role email createdAt lastLoginAt lastActiveAt studyData").lean(),
       Material.aggregate([
         { $group: { _id: "$userId", count: { $sum: 1 }, bytes: { $sum: "$size" } } },
       ]),
@@ -92,6 +120,8 @@ const getAdminOverview = async (req, res) => {
     const quiz = quizMap.get(id) || { sets: 0, questions: 0, attempts: 0, score: 0, total: 0 };
     const tasks = taskMap.get(id) || { total: 0, completed: 0 };
 
+    const inactivity = getInactivityInfo(user, req.user._id);
+
     return {
       id,
       name: user.name || user.fullName || "Unnamed user",
@@ -103,6 +133,7 @@ const getAdminOverview = async (req, res) => {
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt || null,
       lastActiveAt: user.lastActiveAt || null,
+      inactivity,
       study: {
         minutes: Number(user.studyData?.studyMinutes || 0),
         materials: material.count,
@@ -133,6 +164,9 @@ const getAdminOverview = async (req, res) => {
     totalMaterials: materials.reduce((sum, item) => sum + item.count, 0),
     totalFlashcards: [...flashcardMap.values()].reduce((sum, item) => sum + item.cards, 0),
     totalQuizAttempts: [...quizMap.values()].reduce((sum, item) => sum + item.attempts, 0),
+    inactiveAccounts: allUsers.filter(
+      (user) => getInactivityInfo(user, req.user._id).eligibleForDeletion,
+    ).length,
   };
 
   return res.json({
@@ -142,6 +176,8 @@ const getAdminOverview = async (req, res) => {
       users: userRows,
       permissions: {
         canManageAdmins: req.user.role === "super_admin",
+        canDeleteInactiveAccounts: req.user.role === "super_admin",
+        inactivityThresholdDays: INACTIVE_ACCOUNT_DAYS,
       },
     },
   });
@@ -185,4 +221,46 @@ const updateUserRole = async (req, res) => {
   });
 };
 
-module.exports = { getAdminOverview, updateUserRole };
+const deleteInactiveUser = async (req, res) => {
+  const target = await User.findById(req.params.userId);
+  if (!target) return res.status(404).json({ message: "User account not found" });
+
+  if (safeId(target._id) === safeId(req.user._id)) {
+    return res.status(400).json({ message: "You cannot delete your own account" });
+  }
+
+  if (target.role === "super_admin" || isSourceSuperAdmin(target.email)) {
+    return res.status(403).json({
+      message: "Super-admin accounts cannot be deleted from the Admin Panel",
+    });
+  }
+
+  const inactivity = getInactivityInfo(target, req.user._id);
+  if (!inactivity.inactiveForMonth) {
+    return res.status(409).json({
+      message: `This account must be inactive for at least ${INACTIVE_ACCOUNT_DAYS} days before deletion`,
+      data: {
+        inactiveDays: inactivity.inactiveDays,
+        requiredDays: INACTIVE_ACCOUNT_DAYS,
+        activityReferenceAt: inactivity.referenceAt,
+      },
+    });
+  }
+
+  const removed = await deleteUserAccountData(target);
+
+  return res.json({
+    success: true,
+    message: "Inactive account and related study data deleted",
+    data: {
+      deletedUser: {
+        id: safeId(target._id),
+        name: target.name || target.fullName || "Unnamed user",
+        email: target.email,
+      },
+      removed,
+    },
+  });
+};
+
+module.exports = { getAdminOverview, updateUserRole, deleteInactiveUser };

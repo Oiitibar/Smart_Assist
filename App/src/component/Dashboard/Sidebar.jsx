@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  ShieldCheck,
   X,
 } from "lucide-react";
 
@@ -19,6 +20,10 @@ const navItems = [
 ];
 
 export default function Sidebar({ activePage, onNavigate, mobileOpen, onClose, user, onLogout }) {
+  const visibleNavItems = user?.role === "admin" || user?.role === "super_admin"
+    ? [...navItems, { id: "admin", label: "Admin Panel", icon: ShieldCheck }]
+    : navItems;
+
   const initials = (user?.name || user?.fullName || "Student")
     .split(" ")
     .map((part) => part[0])
@@ -64,7 +69,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onClose, u
         <nav className="flex-1 px-3 py-4">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">Workspace</p>
           <div className="space-y-1">
-            {navItems.map(({ id, label, icon: Icon }) => {
+            {visibleNavItems.map(({ id, label, icon: Icon }) => {
               const active = activePage === id;
               return (
                 <button
@@ -103,7 +108,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onClose, u
             </span>
             <div className="min-w-0 flex-1">
               <strong className="block truncate text-xs">{user?.name || user?.fullName || "Student"}</strong>
-              <small className="block truncate text-[10px] text-white/55">{user?.email || "student@example.com"}</small>
+              <small className="block truncate text-[10px] text-white/55">{user?.role === "super_admin" ? "Super admin" : user?.role === "admin" ? "Admin" : user?.email || "student@example.com"}</small>
             </div>
           </div>
           <button

@@ -187,7 +187,7 @@ export default function MaterialPage({
   return (
     <div className={pageClass}>
       <PageHeader
-        eyebrow="Knowledge library"
+        eyebrow="Library"
         title="Materials"
         description="Upload and organize study files. These materials become the source for AI flashcard generation."
         action={

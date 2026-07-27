@@ -3,11 +3,13 @@ import {
   Activity,
   BookOpen,
   CheckCircle2,
+  Clock3,
   FileText,
   GraduationCap,
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Users,
 } from "lucide-react";
 import { plannerApi } from "../../service/plannerApi";
@@ -68,6 +70,7 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
   const [role, setRole] = useState("all");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -114,11 +117,37 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
     }
   };
 
+  const deleteInactiveAccount = async (user) => {
+    if (!user?.inactivity?.eligibleForDeletion) return;
+
+    const days = user.inactivity.inactiveDays || 30;
+    const confirmed = window.confirm(
+      `Permanently delete ${user.name} (${user.email})?\n\n` +
+        `This account has been inactive for ${days} days. Its materials, previews, ` +
+        "flashcards, quizzes, timetable, tasks, progress, and uploaded avatar will also be deleted. " +
+        "This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setDeletingId(user.id);
+    try {
+      await plannerApi.deleteInactiveUser(user.id);
+      onNotice?.("Inactive account and its study data were deleted");
+      setSelectedId("");
+      await load();
+    } catch (error) {
+      onError?.(error, "Could not delete inactive account");
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   const summaryCards = [
     { value: payload.summary?.totalAccounts || 0, label: "Total accounts", detail: "Registered Smart Assist users", icon: Users },
     { value: payload.summary?.activeToday || 0, label: "Active today", detail: "Accounts used since midnight", icon: Activity },
     { value: payload.summary?.normalAdmins || 0, label: "Normal admins", detail: "Assigned by a super admin", icon: ShieldCheck },
     { value: payload.summary?.totalMaterials || 0, label: "Study materials", detail: "Across every account", icon: FileText },
+    { value: payload.summary?.inactiveAccounts || 0, label: "Inactive 30+ days", detail: "Eligible for super-admin cleanup", icon: Clock3 },
   ];
 
   return (
@@ -146,7 +175,7 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
           </div>
         </header>
 
-        <section className="mb-7 grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <section className="mb-7 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
           {summaryCards.map(({ value, label, detail, icon: Icon }) => (
             <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-5 flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -227,21 +256,39 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
                       <td className="px-3 py-3">
                         <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{user.study.materials} materials · {user.study.quizAttempts} quiz attempts</p>
                         <p className="text-[11px] text-slate-400">{user.study.flashcards} flashcards · {user.study.quizAverage ?? "—"}% quiz average</p>
+                        {user.inactivity?.inactiveForMonth && (
+                          <span className="mt-1.5 inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                            Inactive {user.inactivity.inactiveDays} days
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${roleClasses[user.role]}`}>{roleLabels[user.role]}</span>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        {payload.permissions?.canManageAdmins && user.role !== "super_admin" && user.id !== currentUser?.id && (
-                          <button
-                            type="button"
-                            disabled={updatingId === user.id}
-                            onClick={(event) => { event.stopPropagation(); changeRole(user); }}
-                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 dark:text-indigo-300"
-                          >
-                            {updatingId === user.id ? "Saving..." : user.role === "admin" ? "Remove admin" : "Make admin"}
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-3">
+                          {payload.permissions?.canManageAdmins && user.role !== "super_admin" && user.id !== currentUser?.id && (
+                            <button
+                              type="button"
+                              disabled={updatingId === user.id || deletingId === user.id}
+                              onClick={(event) => { event.stopPropagation(); changeRole(user); }}
+                              className="whitespace-nowrap text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 dark:text-indigo-300"
+                            >
+                              {updatingId === user.id ? "Saving..." : user.role === "admin" ? "Remove admin" : "Make admin"}
+                            </button>
+                          )}
+                          {payload.permissions?.canDeleteInactiveAccounts && user.inactivity?.eligibleForDeletion && (
+                            <button
+                              type="button"
+                              disabled={deletingId === user.id || updatingId === user.id}
+                              onClick={(event) => { event.stopPropagation(); deleteInactiveAccount(user); }}
+                              className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-rose-600 hover:text-rose-800 disabled:opacity-50 dark:text-rose-300"
+                            >
+                              <Trash2 size={13} />
+                              {deletingId === user.id ? "Deleting..." : "Delete"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )) : (
@@ -287,9 +334,28 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
                     <div className="mb-2 flex items-center gap-2"><Sparkles size={14} className="text-indigo-300" /><p className="text-[11px] font-semibold">Account activity</p></div>
                     <p className="text-[11px] text-slate-400">Last active</p>
                     <p className="mt-1 text-xs font-medium">{formatDate(selectedUser.lastActiveAt)}</p>
+                    <p className="mt-3 text-[11px] text-slate-400">Activity reference</p>
+                    <p className="mt-1 text-xs font-medium">{formatDate(selectedUser.inactivity?.referenceAt, "No activity recorded")}</p>
                     <p className="mt-3 text-[11px] text-slate-400">Member since</p>
                     <p className="mt-1 text-xs font-medium">{formatDate(selectedUser.createdAt)}</p>
+                    <div className={`mt-4 rounded-lg px-3 py-2 text-[11px] font-semibold ${selectedUser.inactivity?.inactiveForMonth ? "bg-rose-500/15 text-rose-200" : "bg-emerald-500/15 text-emerald-200"}`}>
+                      {selectedUser.inactivity?.inactiveForMonth
+                        ? `Inactive for ${selectedUser.inactivity.inactiveDays} days`
+                        : `Active within the last ${payload.permissions?.inactivityThresholdDays || 30} days`}
+                    </div>
                   </div>
+
+                  {payload.permissions?.canDeleteInactiveAccounts && selectedUser.inactivity?.eligibleForDeletion && (
+                    <button
+                      type="button"
+                      disabled={deletingId === selectedUser.id}
+                      onClick={() => deleteInactiveAccount(selectedUser)}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-xs font-bold text-white transition hover:bg-rose-600 disabled:opacity-50"
+                    >
+                      <Trash2 size={15} />
+                      {deletingId === selectedUser.id ? "Deleting account..." : "Delete inactive account"}
+                    </button>
+                  )}
                 </div>
               </>
             ) : (
@@ -298,12 +364,12 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
           </aside>
         </div>
 
-        <div className="mt-6 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-300">
+        {/* <div className="mt-6 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-300">
           <CheckCircle2 className="mt-0.5 shrink-0" size={15} />
           <p>
-            Super admins are controlled only by <code className="font-bold">backend/config/superAdmins.js</code>. Normal admins can view this panel, but only a super admin can grant or remove normal-admin access.
+            Super admins are controlled only by <code className="font-bold">backend/config/superAdmins.js</code>. Normal admins can view this panel, but only a super admin can manage roles or permanently delete an account that has been inactive for at least 30 full days.
           </p>
-        </div>
+        </div> */}
       </div>
     </div>
   );

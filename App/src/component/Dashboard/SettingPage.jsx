@@ -4,6 +4,8 @@ import {
   CalendarDays,
   Camera,
   Check,
+  RotateCcw,
+  Sparkles,
   Clock3,
   Globe2,
   HelpCircle,
@@ -26,13 +28,26 @@ import {
   secondaryButtonClass,
   selectClass,
 } from "./ui";
+import { resolveAvatarUrl } from "../../utils/avatar";
 
-export default function SettingPage({ user, profile, settings, onSaveProfile, onSaveSettings, onUploadAvatar }) {
+const FREE_AVATARS = [
+  { name: "Nova", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Nova&backgroundColor=b6e3f4&radius=20" },
+  { name: "Milo", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Milo&backgroundColor=c0aede&radius=20" },
+  { name: "Luna", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Luna&backgroundColor=d1d4f9&radius=20" },
+  { name: "Kai", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Kai&backgroundColor=ffd5dc&radius=20" },
+  { name: "Sage", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Sage&backgroundColor=c1f4c5&radius=20" },
+  { name: "Ari", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Ari&backgroundColor=ffdfbf&radius=20" },
+  { name: "Zoe", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Zoe&backgroundColor=f1f4dc&radius=20" },
+  { name: "Theo", url: "https://api.dicebear.com/10.x/lorelei/svg?seed=Theo&backgroundColor=bde7ff&radius=20" },
+];
+
+export default function SettingPage({ user, profile, settings, onSaveProfile, onSaveSettings, onUploadAvatar, onSetAvatar }) {
   const [draftProfile, setDraftProfile] = useState(profile);
   const [draftSettings, setDraftSettings] = useState(settings);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [selectingAvatar, setSelectingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
 
   useEffect(() => setDraftProfile(profile), [profile]);
@@ -58,7 +73,7 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
   };
 
   const uploadAvatar = async (file) => {
-    if (!file || uploadingAvatar) return;
+    if (!file || uploadingAvatar || selectingAvatar) return;
     setUploadingAvatar(true);
     try {
       await onUploadAvatar?.(file);
@@ -68,6 +83,17 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
     }
   };
 
+  const chooseAvatar = async (avatarUrl) => {
+    if (uploadingAvatar || selectingAvatar) return;
+    setSelectingAvatar(true);
+    try {
+      await onSetAvatar?.(avatarUrl);
+    } finally {
+      setSelectingAvatar(false);
+    }
+  };
+
+  const avatarSrc = resolveAvatarUrl(user?.avatarUrl);
   const initials = (draftProfile.fullName || user?.name || user?.fullName || "Student")
     .split(" ")
     .map((part) => part[0])
@@ -101,9 +127,9 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
           </div>
 
           <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            {user?.avatarUrl ? (
+            {avatarSrc ? (
               <img
-                src={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${user.avatarUrl}`}
+                src={avatarSrc}
                 alt="Profile"
                 className="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-sm"
               />
@@ -112,9 +138,9 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
                 {initials}
               </span>
             )}
-            <div>
-              <strong className="text-sm text-slate-900 dark:text-white">Profile photo</strong>
-              <p className="mt-1 text-xs text-slate-400">JPG, PNG or WEBP, maximum 2 MB.</p>
+            <div className="min-w-0">
+              <strong className="text-sm text-slate-900 dark:text-white">Profile avatar</strong>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Upload your photo, choose a free avatar, or restore the default initials.</p>
               <input
                 ref={avatarInputRef}
                 type="file"
@@ -122,10 +148,64 @@ export default function SettingPage({ user, profile, settings, onSaveProfile, on
                 accept="image/png,image/jpeg,image/webp"
                 onChange={(event) => uploadAvatar(event.target.files?.[0])}
               />
-              <button type="button" className={`${secondaryButtonClass} mt-2`} onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar}>
-                <Camera size={16} /> {uploadingAvatar ? "Uploading..." : "Change photo"}
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={secondaryButtonClass}
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar || selectingAvatar}
+                >
+                  <Camera size={16} /> {uploadingAvatar ? "Uploading..." : "Upload photo"}
+                </button>
+                <button
+                  type="button"
+                  className={secondaryButtonClass}
+                  onClick={() => chooseAvatar("")}
+                  disabled={uploadingAvatar || selectingAvatar || !user?.avatarUrl}
+                >
+                  <RotateCcw size={16} /> Use default
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">Uploaded images: JPG, PNG or WEBP, maximum 2 MB.</p>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-violet-500" />
+              <div>
+                <strong className="block text-sm text-slate-900 dark:text-white">Choose a avatar</strong>
+                {/* <p className="mt-0.5 text-[11px] text-slate-400">Generated by DiceBear. No API key is required.</p> */}
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+              {FREE_AVATARS.map((avatar) => {
+                const selected = user?.avatarUrl === avatar.url;
+                return (
+                  <button
+                    key={avatar.url}
+                    type="button"
+                    onClick={() => chooseAvatar(avatar.url)}
+                    disabled={uploadingAvatar || selectingAvatar}
+                    className={`relative overflow-hidden rounded-2xl border-2 bg-white p-1 transition hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-950 ${
+                      selected
+                        ? "border-indigo-500 ring-2 ring-indigo-100 dark:ring-indigo-500/20"
+                        : "border-transparent hover:border-indigo-200 dark:hover:border-indigo-800"
+                    }`}
+                    aria-label={`Use ${avatar.name} avatar`}
+                    aria-pressed={selected}
+                  >
+                    <img src={avatar.url} alt="" className="aspect-square w-full rounded-xl object-cover" />
+                    {selected && (
+                      <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-white shadow">
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectingAvatar && <p className="mt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-300">Updating avatar...</p>}
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">

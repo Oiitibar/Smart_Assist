@@ -111,6 +111,9 @@ export const plannerApi = {
     return requestData(api.post("/users/avatar", formData));
   },
 
+  setAvatar: (avatarUrl = "") =>
+    requestData(api.put("/users/avatar", { avatarUrl })),
+
   updateProfile: (payload) =>
     requestData(api.put("/users/profile", payload)),
   updatePreferences: (payload) =>

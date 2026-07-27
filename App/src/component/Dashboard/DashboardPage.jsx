@@ -601,6 +601,19 @@ export default function DashboardPage() {
     }
   };
 
+  const setAvatar = async (avatarUrl = "") => {
+    try {
+      const response = await plannerApi.setAvatar(avatarUrl);
+      const updatedUser = normalizeUser(response);
+      if (updatedUser) setUser(updatedUser);
+      showNotice(avatarUrl ? "Avatar updated" : "Default avatar restored");
+      return updatedUser;
+    } catch (requestError) {
+      showError(requestError, "Could not update avatar");
+      throw requestError;
+    }
+  };
+
   const saveProfile = async (nextProfile) => {
     try {
       const response = await plannerApi.updateProfile({
@@ -702,6 +715,7 @@ export default function DashboardPage() {
           onSaveProfile={saveProfile}
           onSaveSettings={saveSettings}
           onUploadAvatar={uploadAvatar}
+          onSetAvatar={setAvatar}
         />
       );
     }

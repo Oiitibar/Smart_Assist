@@ -1,6 +1,8 @@
 import { Bell, Menu, Moon, Search, Sun } from "lucide-react";
+import { resolveAvatarUrl } from "../../utils/avatar";
 
 export default function Topbar({ pageTitle, onMenu, onSearch, user, darkMode, onToggleTheme }) {
+  const avatarSrc = resolveAvatarUrl(user?.avatarUrl);
   const initials = (user?.name || user?.fullName || "Student")
     .split(" ")
     .map((part) => part[0])
@@ -47,9 +49,17 @@ export default function Topbar({ pageTitle, onMenu, onSearch, user, darkMode, on
       </button> */}
 
       <button className="flex items-center gap-2 rounded-xl p-1.5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-900">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-xs font-bold text-white dark:bg-indigo-500">
-          {initials}
-        </span>
+        {avatarSrc ? (
+          <img
+            src={avatarSrc}
+            alt={`${user?.name || user?.fullName || "Student"} avatar`}
+            className="h-9 w-9 rounded-xl object-cover shadow-sm"
+          />
+        ) : (
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-xs font-bold text-white dark:bg-indigo-500">
+            {initials}
+          </span>
+        )}
         <span className="hidden min-w-0 sm:block">
           <strong className="block max-w-[130px] truncate text-xs text-slate-900 dark:text-white">{user?.name || user?.fullName || "Student"}</strong>
           <small className="text-[10px] text-slate-400">Student</small>

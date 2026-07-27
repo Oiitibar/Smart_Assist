@@ -28,13 +28,15 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["student", "admin"],
+      enum: ["student", "admin", "super_admin"],
       default: "student",
     },
     avatarUrl: {
       type: String,
       default: "",
     },
+    lastLoginAt: { type: Date, default: null },
+    lastActiveAt: { type: Date, default: null },
     profile: {
       phone: { type: String, default: "" },
       school: { type: String, default: "" },

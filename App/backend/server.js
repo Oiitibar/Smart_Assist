@@ -20,6 +20,7 @@ const flashcardRoutes = require("./routes/flashcardRoutes");
 const quizRoutes = require("./routes/quizRoutes");
 const documentAiRoutes = require("./routes/documentAiRoutes");
 const taskRoutes = require("./routes/taskRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const User = require("./models/User");
 
 const app = express();
@@ -97,6 +98,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/flashcards", flashcardRoutes);
 app.use("/api/quizzes", quizRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/admin", adminRoutes);
 // Route not found
 app.use((req, res) => {
   res.status(404).json({

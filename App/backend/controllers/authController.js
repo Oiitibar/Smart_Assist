@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { isSourceSuperAdmin } = require("../config/superAdmins");
 
 const getCookieName = () => process.env.JWT_COOKIE_NAME || "token";
 
@@ -27,6 +28,9 @@ const userPayload = (user) => ({
   profile: user.profile,
   preferences: user.preferences,
   studyData: user.studyData,
+  createdAt: user.createdAt,
+  lastLoginAt: user.lastLoginAt,
+  lastActiveAt: user.lastActiveAt,
 });
 
 const register = async (req, res) => {
@@ -47,7 +51,16 @@ const register = async (req, res) => {
     return res.status(409).json({ message: "Email already registered" });
   }
 
-  const user = await User.create({ name, fullName: name, email, password });
+  const now = new Date();
+  const user = await User.create({
+    name,
+    fullName: name,
+    email,
+    password,
+    role: isSourceSuperAdmin(email) ? "super_admin" : "student",
+    lastLoginAt: now,
+    lastActiveAt: now,
+  });
   const token = generateToken(user._id);
   res.cookie(getCookieName(), token, cookieOptions());
 
@@ -70,6 +83,16 @@ const login = async (req, res) => {
   if (!user || !(await user.matchPassword(password))) {
     return res.status(401).json({ message: "Invalid email or password" });
   }
+
+  const expectedRole = isSourceSuperAdmin(user.email)
+    ? "super_admin"
+    : user.role === "super_admin"
+      ? "student"
+      : user.role;
+  user.role = expectedRole;
+  user.lastLoginAt = new Date();
+  user.lastActiveAt = user.lastLoginAt;
+  await user.save();
 
   const token = generateToken(user._id);
   res.cookie(getCookieName(), token, cookieOptions());

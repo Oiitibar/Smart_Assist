@@ -6,6 +6,11 @@ export const plannerApi = {
   getDashboardSummary: () =>
     requestData(api.get("/dashboard/summary")),
 
+  getAdminOverview: ({ search = "", role = "all" } = {}) =>
+    requestData(api.get("/admin/overview", { params: { search, role } })),
+  updateAdminRole: (userId, role) =>
+    requestData(api.patch(`/admin/users/${userId}/role`, { role })),
+
   getTimetable: () => requestData(api.get("/timetable")),
   createTimetable: (payload) =>
     requestData(api.post("/timetable", payload)),

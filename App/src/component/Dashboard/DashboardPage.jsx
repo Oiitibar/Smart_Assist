@@ -8,6 +8,7 @@ import SettingPage from "./SettingPage";
 import Sidebar from "./Sidebar";
 import TimetablePage from "./TimetablePage";
 import Topbar from "./Topbar";
+import AdminPanel from "./AdminPanel";
 
 const titles = {
   dashboard: "Dashboard",
@@ -15,6 +16,7 @@ const titles = {
   study: "Study",
   material: "Materials",
   setting: "Settings",
+  admin: "Admin Panel",
 };
 
 const dayToShort = {
@@ -302,6 +304,15 @@ export default function DashboardPage() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  useEffect(() => {
+    const hasAdminAccess = user?.role === "admin" || user?.role === "super_admin";
+    if (user && activePage === "admin" && !hasAdminAccess) {
+      setActivePage("dashboard");
+      window.location.hash = "/dashboard";
+      showError(new Error("Admin access is required"), "Admin access is required");
+    }
+  }, [activePage, user, showError]);
 
   const navigate = (page) => {
     setActivePage(page);
@@ -703,6 +714,15 @@ export default function DashboardPage() {
           onDeleteCategory={deleteCategory}
           onAddMaterial={addMaterial}
           onDeleteMaterial={deleteMaterial}
+        />
+      );
+    }
+    if (activePage === "admin") {
+      return (
+        <AdminPanel
+          currentUser={user}
+          onNotice={showNotice}
+          onError={showError}
         />
       );
     }

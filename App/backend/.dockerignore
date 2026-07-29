@@ -1,0 +1,43 @@
+# Dependencies and package-manager noise
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Secrets must be supplied at runtime
+.env
+.env.*
+!.env.example
+
+# Source-control and editor data
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Tests/build output not needed by the backend image
+coverage/
+dist/
+
+# Runtime uploads must never be baked into an image
+uploads/*
+!uploads/.gitkeep
+!uploads/avatars/
+!uploads/materials/
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+uploads/materials/*
+!uploads/materials/.gitkeep
+
+# Converted previews are temporary and regenerated when needed
+previews/*
+!previews/.gitkeep
+
+# Local temporary files
+*.tmp
+*.temp
+tmp/
+temp/

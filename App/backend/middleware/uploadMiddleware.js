@@ -3,16 +3,13 @@ const path = require("path");
 const fs = require("fs");
 
 const uploadsRoot = path.join(__dirname, "..", "uploads");
-const materialUploadDir = path.join(uploadsRoot, "materials");
 const avatarUploadDir = path.join(uploadsRoot, "avatars");
 
-for (const directory of [materialUploadDir, avatarUploadDir]) {
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
-  }
+if (!fs.existsSync(avatarUploadDir)) {
+  fs.mkdirSync(avatarUploadDir, { recursive: true });
 }
 
-const createStorage = (destination) =>
+const createDiskStorage = (destination) =>
   multer.diskStorage({
     destination: (req, file, cb) => cb(null, destination),
     filename: (req, file, cb) => {
@@ -48,28 +45,28 @@ const allowedAvatarTypes = new Set([
   "image/webp",
 ]);
 
-const createUpload = ({ allowedTypes, fileSize, destination }) =>
-  multer({
-    storage: createStorage(destination),
-    limits: { fileSize },
-    fileFilter: (req, file, cb) => {
-      if (allowedTypes.has(file.mimetype)) return cb(null, true);
-      const error = new Error("Unsupported file type.");
-      error.status = 400;
-      return cb(error);
-    },
-  });
+const createFileFilter = (allowedTypes) => (req, file, cb) => {
+  if (allowedTypes.has(file.mimetype)) return cb(null, true);
+  const error = new Error("Unsupported file type.");
+  error.status = 400;
+  return cb(error);
+};
 
-const materialUpload = createUpload({
-  allowedTypes: allowedMaterialTypes,
-  fileSize: 50 * 1024 * 1024,
-  destination: materialUploadDir,
+// Materials are held in memory only long enough for the controller to upload
+// them to private Cloudflare R2 storage. They are no longer written to the
+// backend/uploads/materials folder.
+const materialUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: createFileFilter(allowedMaterialTypes),
 });
 
-const avatarUpload = createUpload({
-  allowedTypes: allowedAvatarTypes,
-  fileSize: 2 * 1024 * 1024,
-  destination: avatarUploadDir,
+// Uploaded profile photos remain local in this patch. DiceBear avatars still
+// store only their external URL. Avatar migration to R2 can be added later.
+const avatarUpload = multer({
+  storage: createDiskStorage(avatarUploadDir),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: createFileFilter(allowedAvatarTypes),
 });
 
 module.exports = materialUpload;

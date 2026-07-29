@@ -25,7 +25,20 @@ exports.viewMaterial = async (req, res) => {
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
 
-  return res.sendFile(preview.filePath);
+  try {
+    await new Promise((resolve, reject) => {
+      res.sendFile(preview.filePath, (error) => {
+        if (error) return reject(error);
+        return resolve();
+      });
+    });
+  } finally {
+    if (typeof preview.cleanup === "function") {
+      await preview.cleanup().catch(() => {});
+    }
+  }
+
+  return undefined;
 };
 
 exports.askMaterial = async (req, res) => {

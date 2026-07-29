@@ -18,6 +18,13 @@ const materialSchema = new mongoose.Schema(
     description: { type: String, default: "", trim: true },
     originalName: { type: String, default: "" },
     storedName: { type: String, required: true },
+    storageProvider: {
+      type: String,
+      enum: ["local", "r2"],
+      default: "local",
+      index: true,
+    },
+    storageKey: { type: String, default: "", trim: true },
     fileUrl: { type: String, required: true },
     fileType: { type: String, default: "FILE" },
     mimeType: { type: String, default: "" },

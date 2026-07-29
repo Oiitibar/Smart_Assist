@@ -9,6 +9,7 @@ const Task = require("../models/Task");
 const Timetable = require("../models/Timetable");
 const Progress = require("../models/Progress");
 const { deleteMaterialPreview } = require("./documentPreviewService");
+const { deleteObject, isR2Material } = require("./r2StorageService");
 
 const removeFileCandidates = async (paths) => {
   await Promise.all(
@@ -23,6 +24,14 @@ const removeMaterialFile = async (storedName) => {
     path.join(__dirname, "..", "uploads", "materials", safeName),
     path.join(__dirname, "..", "uploads", safeName),
   ]);
+};
+
+const removeStoredMaterial = async (material) => {
+  if (isR2Material(material)) {
+    await deleteObject(material.storageKey);
+    return;
+  }
+  await removeMaterialFile(material.storedName);
 };
 
 const removeLocalAvatar = async (avatarUrl) => {
@@ -41,11 +50,18 @@ const removeLocalAvatar = async (avatarUrl) => {
 const deleteUserAccountData = async (user) => {
   const userId = user._id;
   const materials = await Material.find({ userId })
-    .select("_id storedName")
+    .select("_id storedName storageProvider storageKey")
     .lean();
 
-  // Delete database records before removing the User document so no owned data
-  // is left behind with an invalid userId reference.
+  // Remove private file objects first. If R2 is temporarily unavailable, stop
+  // before deleting the database records so files do not become orphaned.
+  await Promise.all(
+    materials.flatMap((material) => [
+      removeStoredMaterial(material),
+      deleteMaterialPreview(material._id),
+    ]),
+  );
+
   const [categories, materialRecords, flashcards, quizzes, tasks, timetable, progress] =
     await Promise.all([
       Category.deleteMany({ userId }),
@@ -58,16 +74,7 @@ const deleteUserAccountData = async (user) => {
     ]);
 
   await User.deleteOne({ _id: userId });
-
-  // File removal is best-effort. Missing legacy files should not stop account
-  // cleanup after the database records have already been removed.
-  await Promise.all([
-    removeLocalAvatar(user.avatarUrl),
-    ...materials.flatMap((material) => [
-      removeMaterialFile(material.storedName),
-      deleteMaterialPreview(material._id),
-    ]),
-  ]);
+  await removeLocalAvatar(user.avatarUrl);
 
   return {
     categories: categories.deletedCount || 0,

@@ -5,6 +5,10 @@ const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { pathToFileURL } = require("url");
+const {
+  downloadObjectToTemp,
+  isR2Material,
+} = require("./r2StorageService");
 
 const execFileAsync = promisify(execFile);
 
@@ -29,7 +33,16 @@ const createHttpError = (message, status = 500, code = "PREVIEW_ERROR") => {
 };
 
 const resolveStoredMaterialPath = (material) => {
-  const storedName = material?.storedName || path.basename(String(material?.fileUrl || ""));
+  if (isR2Material(material)) {
+    throw createHttpError(
+      "R2 materials must be downloaded through the storage service",
+      500,
+      "R2_LOCAL_PATH_REQUESTED",
+    );
+  }
+
+  const storedName =
+    material?.storedName || path.basename(String(material?.fileUrl || ""));
   const safeName = path.basename(String(storedName || ""));
   const preferredPath = path.resolve(materialUploadsDirectory, safeName);
   const legacyPath = path.resolve(uploadsDirectory, safeName);
@@ -44,7 +57,7 @@ const resolveStoredMaterialPath = (material) => {
   return fs.existsSync(preferredPath) ? preferredPath : legacyPath;
 };
 
-const getMaterialExtension = (material, sourcePath) => {
+const getMaterialExtension = (material, sourcePath = "") => {
   const candidates = [
     material?.originalName,
     material?.storedName,
@@ -69,14 +82,8 @@ const findLibreOfficeExecutable = () => {
       "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
       "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
     ],
-    darwin: [
-      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-    ],
-    linux: [
-      "/usr/bin/libreoffice",
-      "/usr/bin/soffice",
-      "/snap/bin/libreoffice",
-    ],
+    darwin: ["/Applications/LibreOffice.app/Contents/MacOS/soffice"],
+    linux: ["/usr/bin/libreoffice", "/usr/bin/soffice", "/snap/bin/libreoffice"],
   };
 
   const existing = (platformCandidates[process.platform] || []).find((candidate) =>
@@ -84,14 +91,22 @@ const findLibreOfficeExecutable = () => {
   );
 
   if (existing) return existing;
-
   return process.platform === "win32" ? "soffice.exe" : "soffice";
 };
 
 const getPreviewPath = (materialId) =>
   path.join(previewsDirectory, `${String(materialId)}.pdf`);
 
-const isPreviewCurrent = async (sourcePath, previewPath) => {
+const isNonEmptyFile = async (filePath) => {
+  try {
+    const stats = await fs.promises.stat(filePath);
+    return stats.isFile() && stats.size > 0;
+  } catch {
+    return false;
+  }
+};
+
+const isLocalPreviewCurrent = async (sourcePath, previewPath) => {
   try {
     const [sourceStats, previewStats] = await Promise.all([
       fs.promises.stat(sourcePath),
@@ -111,7 +126,9 @@ const convertOfficeFileToPdf = async ({ sourcePath, previewPath, materialId }) =
   );
 
   const libreOfficeExecutable = findLibreOfficeExecutable();
-  const operationId = `${String(materialId)}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+  const operationId = `${String(materialId)}-${Date.now()}-${crypto
+    .randomBytes(4)
+    .toString("hex")}`;
   const workDirectory = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "smart-assist-preview-"),
   );
@@ -145,7 +162,10 @@ const convertOfficeFileToPdf = async ({ sourcePath, previewPath, materialId }) =
       },
     );
 
-    const expectedName = `${path.basename(sourcePath, path.extname(sourcePath))}.pdf`;
+    const expectedName = `${path.basename(
+      sourcePath,
+      path.extname(sourcePath),
+    )}.pdf`;
     const expectedPath = path.join(outputDirectory, expectedName);
 
     let convertedPath = expectedPath;
@@ -202,14 +222,72 @@ const convertOfficeFileToPdf = async ({ sourcePath, previewPath, materialId }) =
   }
 };
 
-const ensureMaterialPreview = async (material) => {
-  const sourcePath = resolveStoredMaterialPath(material);
+const ensureR2MaterialPreview = async (material, extension) => {
+  if (extension === ".pdf") {
+    const temporary = await downloadObjectToTemp({
+      key: material.storageKey,
+      originalName: material.originalName || material.storedName,
+    });
 
-  if (!fs.existsSync(sourcePath)) {
-    throw createHttpError("Material file not found", 404, "MATERIAL_FILE_NOT_FOUND");
+    return {
+      filePath: temporary.filePath,
+      contentType: "application/pdf",
+      converted: false,
+      temporary: true,
+      cleanup: temporary.cleanup,
+    };
   }
 
-  const extension = getMaterialExtension(material, sourcePath);
+  const materialId = String(material._id || material.id);
+  const previewPath = getPreviewPath(materialId);
+  await ensureDirectory(previewsDirectory);
+
+  // The material object key never changes in this project. A non-empty local
+  // preview is therefore a valid cache until the material is deleted. Render
+  // may erase it during restart/redeploy, in which case it is regenerated.
+  if (await isNonEmptyFile(previewPath)) {
+    return {
+      filePath: previewPath,
+      contentType: "application/pdf",
+      converted: true,
+      temporary: true,
+    };
+  }
+
+  if (!conversionLocks.has(materialId)) {
+    conversionLocks.set(
+      materialId,
+      (async () => {
+        const temporary = await downloadObjectToTemp({
+          key: material.storageKey,
+          originalName: material.originalName || material.storedName,
+        });
+
+        try {
+          await convertOfficeFileToPdf({
+            sourcePath: temporary.filePath,
+            previewPath,
+            materialId,
+          });
+        } finally {
+          await temporary.cleanup();
+        }
+      })().finally(() => conversionLocks.delete(materialId)),
+    );
+  }
+
+  await conversionLocks.get(materialId);
+
+  return {
+    filePath: previewPath,
+    contentType: "application/pdf",
+    converted: true,
+    temporary: true,
+  };
+};
+
+const ensureMaterialPreview = async (material) => {
+  const extension = getMaterialExtension(material);
 
   if (!SUPPORTED_PREVIEW_EXTENSIONS.has(extension)) {
     throw createHttpError(
@@ -217,6 +295,16 @@ const ensureMaterialPreview = async (material) => {
       415,
       "UNSUPPORTED_PREVIEW_TYPE",
     );
+  }
+
+  if (isR2Material(material)) {
+    return ensureR2MaterialPreview(material, extension);
+  }
+
+  const sourcePath = resolveStoredMaterialPath(material);
+
+  if (!fs.existsSync(sourcePath)) {
+    throw createHttpError("Material file not found", 404, "MATERIAL_FILE_NOT_FOUND");
   }
 
   if (extension === ".pdf") {
@@ -235,7 +323,7 @@ const ensureMaterialPreview = async (material) => {
   const materialId = String(material._id || material.id);
   const previewPath = getPreviewPath(materialId);
 
-  if (await isPreviewCurrent(sourcePath, previewPath)) {
+  if (await isLocalPreviewCurrent(sourcePath, previewPath)) {
     return {
       filePath: previewPath,
       contentType: "application/pdf",
@@ -246,8 +334,9 @@ const ensureMaterialPreview = async (material) => {
   if (!conversionLocks.has(materialId)) {
     conversionLocks.set(
       materialId,
-      convertOfficeFileToPdf({ sourcePath, previewPath, materialId })
-        .finally(() => conversionLocks.delete(materialId)),
+      convertOfficeFileToPdf({ sourcePath, previewPath, materialId }).finally(() =>
+        conversionLocks.delete(materialId),
+      ),
     );
   }
 

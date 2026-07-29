@@ -1,5 +1,9 @@
 const fs = require("fs/promises");
 const path = require("path");
+const {
+  downloadObjectToTemp,
+  isR2Material,
+} = require("./r2StorageService");
 
 const createHttpError = (status, message) => {
   const error = new Error(message);
@@ -22,15 +26,12 @@ const getMaterialExtension = (material) => {
 };
 
 const resolveMaterialPath = (material) => {
-  const storedName =
-    material.storedName ||
-    path.basename(String(material.fileUrl || ""));
+  const storedName = material.storedName || path.basename(String(material.fileUrl || ""));
 
   if (!storedName) {
     throw createHttpError(404, "The stored material file could not be located");
   }
 
-  // basename prevents a database value from escaping backend/uploads.
   const safeName = path.basename(storedName);
   const preferredPath = path.resolve(materialUploadsDirectory, safeName);
   const legacyPath = path.resolve(uploadsDirectory, safeName);
@@ -82,13 +83,11 @@ const limitText = (text) => {
 const extractPdfText = async (buffer) => {
   const pdfModule = require("pdf-parse");
 
-  // Supports the v1-compatible function API.
   if (typeof pdfModule === "function") {
     const result = await pdfModule(buffer);
     return result?.text || "";
   }
 
-  // Supports pdf-parse v2.
   if (pdfModule?.PDFParse) {
     const parser = new pdfModule.PDFParse({ data: buffer });
     try {
@@ -115,9 +114,7 @@ const extractPptxText = async (filePath) => {
   return parsePptx(filePath, "text");
 };
 
-const extractMaterialText = async (material) => {
-  const extension = getMaterialExtension(material);
-  const filePath = resolveMaterialPath(material);
+const extractFromLocalPath = async ({ material, extension, filePath }) => {
   const maximumBytes =
     Math.max(1, Number(process.env.AI_MAX_FILE_SIZE_MB) || 25) * 1024 * 1024;
 
@@ -125,13 +122,15 @@ const extractMaterialText = async (material) => {
   try {
     stats = await fs.stat(filePath);
   } catch {
-    throw createHttpError(404, "The uploaded material file no longer exists on the server");
+    throw createHttpError(404, "The uploaded material file no longer exists");
   }
 
   if (stats.size > maximumBytes) {
     throw createHttpError(
       413,
-      `This material is too large for AI processing. Maximum: ${Math.round(maximumBytes / 1024 / 1024)} MB`,
+      `This material is too large for AI processing. Maximum: ${Math.round(
+        maximumBytes / 1024 / 1024,
+      )} MB`,
     );
   }
 
@@ -178,9 +177,36 @@ const extractMaterialText = async (material) => {
   return {
     ...limited,
     extension,
-    storedPath: filePath,
+    storageProvider: material.storageProvider || "local",
     fileSize: stats.size,
   };
+};
+
+const extractMaterialText = async (material) => {
+  const extension = getMaterialExtension(material);
+
+  if (isR2Material(material)) {
+    const temporary = await downloadObjectToTemp({
+      key: material.storageKey,
+      originalName: material.originalName || material.storedName,
+    });
+
+    try {
+      return await extractFromLocalPath({
+        material,
+        extension,
+        filePath: temporary.filePath,
+      });
+    } finally {
+      await temporary.cleanup();
+    }
+  }
+
+  return extractFromLocalPath({
+    material,
+    extension,
+    filePath: resolveMaterialPath(material),
+  });
 };
 
 module.exports = { extractMaterialText };

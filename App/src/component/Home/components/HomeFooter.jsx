@@ -10,8 +10,8 @@ export default function HomeFooter() {
         <div>
           <BrandLogo compact />
           <p className="mt-4 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
-            A secure full-stack academic planning system for schedules, tasks,
-            materials and flashcard revision.
+            A secure study platform for planning classes, organizing materials,
+            reading documents, asking AI questions, and reviewing flashcards and quizzes.
           </p>
         </div>
 
@@ -60,8 +60,8 @@ export default function HomeFooter() {
       </div>
 
       <div className="mx-auto mt-9 flex max-w-7xl flex-col gap-2 border-t border-slate-200 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-        <p>© {new Date().getFullYear()} Smart Student Planner.</p>
-        <p>React · Tailwind CSS · Node.js · Express · MongoDB</p>
+        <p>© {new Date().getFullYear()} Smart Assist.</p>
+        <p>React · Tailwind CSS · Node.js · Express · MongoDB · R2</p>
       </div>
     </footer>
   );

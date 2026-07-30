@@ -10,9 +10,9 @@ export default function FeaturesSection() {
     >
       <div className="mx-auto max-w-7xl">
         <SectionHeading
-          eyebrow="Built for your project workflow"
-          title="Everything students need in one organized place"
-          description="Each feature connects to your backend and MongoDB account data, so updates remain after refresh and stay private to the signed-in user."
+          eyebrow="Current Smart Assist experience"
+          title="Plan, read and revise without switching apps"
+          description="The homepage now reflects the functions available in the deployed app: dashboard planning, secure materials, in-app reading, grounded AI, flashcards and saved quizzes."
         />
 
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">

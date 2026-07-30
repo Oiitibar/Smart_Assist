@@ -7,7 +7,7 @@ export default function BrandLogo({ compact = false }) {
     <Link
       to={HOME_ROUTES.home}
       className="inline-flex items-center gap-2.5"
-      aria-label="Smart Student Planner home"
+      aria-label="Smart Assist home"
     >
       <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 dark:bg-indigo-500">
         <GraduationCap size={19} />
@@ -18,8 +18,7 @@ export default function BrandLogo({ compact = false }) {
           compact ? "text-sm" : "text-[15px] sm:text-base"
         }`}
       >
-        Smart Student{" "}
-        <span className="text-indigo-600 dark:text-indigo-400">Planner</span>
+        Smart <span className="text-indigo-600 dark:text-indigo-400">Assist</span>
       </span>
     </Link>
   );

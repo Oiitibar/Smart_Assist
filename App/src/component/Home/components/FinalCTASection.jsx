@@ -7,11 +7,11 @@ export default function FinalCTASection() {
     <section className="bg-slate-50 px-5 pb-20 dark:bg-slate-900/55 sm:px-6 lg:px-8 lg:pb-24">
       <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-gradient-to-r from-indigo-700 to-violet-700 px-6 py-12 text-center text-white shadow-2xl shadow-indigo-950/20 sm:px-10 sm:py-16">
         <h2 className="text-3xl font-black tracking-[-0.035em] sm:text-5xl">
-          Bring your timetable, materials and revision into one place
+          Bring your plan, materials and AI-assisted revision into one workspace
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-indigo-100 sm:text-base">
-          Create your account, build your personal workspace and start planning
-          your study week with less clutter.
+          Create your account, organize your current subjects and start reading,
+          asking, generating and reviewing from the same app.
         </p>
 
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">

@@ -13,13 +13,13 @@ export default function AboutSection() {
             About the project
           </p>
           <h2 className="mt-4 text-3xl font-black tracking-[-0.035em] text-slate-950 sm:text-4xl dark:text-white">
-            A full-stack planner made for student organization and revision
+            A deployed full-stack academic platform built around real study work
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-            The application uses React and Tailwind CSS on the frontend, Axios
-            for API communication, Node.js and Express for backend logic,
-            MongoDB Atlas for account data, and JWT authentication stored in an
-            HttpOnly cookie.
+            Smart Assist uses a React and Tailwind frontend on Vercel, a Dockerized
+            Node.js and Express backend on Render, MongoDB Atlas for application
+            data, private Cloudflare R2 storage for original materials and
+            LibreOffice for temporary document previews.
           </p>
         </div>
 

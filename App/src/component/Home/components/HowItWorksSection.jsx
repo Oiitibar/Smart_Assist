@@ -14,8 +14,9 @@ export default function HowItWorksSection() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <SectionHeading
-            eyebrow="Simple workflow"
-            title="Start organizing in three steps"
+            eyebrow="Simple connected workflow"
+            title="Move from planning to active revision in three steps"
+            description="Every activity stays inside the same account and remains connected to the correct category and material."
             align="left"
           />
 

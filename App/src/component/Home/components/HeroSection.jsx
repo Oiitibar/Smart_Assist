@@ -4,9 +4,9 @@ import { HOME_ROUTES } from "../routes";
 import DashboardPreview from "./DashboardPreview";
 
 const trustItems = [
-  "Private user accounts",
-  "Responsive design",
-  "Light and dark modes",
+  "Private student accounts",
+  "AI grounded in your materials",
+  "English and Myanmar support",
 ];
 
 export default function HeroSection() {
@@ -17,20 +17,20 @@ export default function HeroSection() {
       <div className="relative mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-extrabold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300">
-            <Zap size={13} /> One workspace for your study life
+            <Zap size={13} /> One complete workspace for smarter study
           </div>
 
           <h1 className="mt-6 text-5xl font-black leading-[1.02] tracking-[-0.045em] text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
-            Plan smarter.
+            Plan your day.
             <span className="block bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400">
-              Study with focus.
+              Learn from your files.
             </span>
           </h1>
 
           <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg dark:text-slate-300">
-            Smart Student Planner helps you manage classes, tasks and study
-            materials, then turn selected materials into useful flashcards from
-            one secure dashboard.
+            Smart Assist combines your timetable, tasks and study materials with
+            a secure document viewer, material-grounded AI, flashcards and saved
+            quizzes in one student workspace.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -45,7 +45,7 @@ export default function HeroSection() {
               to={HOME_ROUTES.login}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 text-sm font-extrabold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:bg-slate-800"
             >
-              Open your dashboard
+              Open your workspace
             </Link>
           </div>
 

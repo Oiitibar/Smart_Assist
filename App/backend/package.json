@@ -9,7 +9,8 @@
     "test:r2": "node scripts/testR2.js",
     "migrate:materials:r2": "node scripts/migrateLocalMaterialsToR2.js",
     "verify:docker": "node scripts/verifyDockerRuntime.js",
-    "healthcheck:docker": "node scripts/dockerHealthcheck.js"
+    "healthcheck:docker": "node scripts/dockerHealthcheck.js",
+    "verify:auth": "node scripts/verifyAuthConfig.js"
   },
   "keywords": [],
   "author": "",

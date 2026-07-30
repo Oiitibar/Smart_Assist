@@ -57,7 +57,7 @@ export default function LoginPage() {
         password,
       });
 
-      navigate("/Smart_Assist/dashboard");
+      navigate("/Smart_Assist/Dashboard", { replace: true });
     } catch (err) {
       setError(
         err.response?.data?.message || err.message ||

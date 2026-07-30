@@ -26,29 +26,43 @@ const User = require("./models/User");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = String(
-  process.env.CLIENT_URL ||
-    process.env.FRONTEND_URL ||
-    "http://localhost:5173"
-)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// Render terminates HTTPS before forwarding traffic to this Express process.
+app.set("trust proxy", 1);
+
+const normalizeOrigin = (value = "") =>
+  String(value).trim().replace(/\/+$/, "");
+
+const splitOrigins = (value = "") =>
+  String(value)
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
+
+const allowedOrigins = new Set([
+  ...splitOrigins(process.env.CLIENT_URL),
+  ...splitOrigins(process.env.FRONTEND_URL),
+  ...splitOrigins(process.env.ALLOWED_ORIGINS),
+]);
+
+// Keep local development convenient only when no origins were configured.
+if (allowedOrigins.size === 0) {
+  allowedOrigins.add("http://localhost:5173");
+}
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.has(normalizeOrigin(origin))) {
         return callback(null, true);
       }
 
-      return callback(
-        new Error(`CORS blocked origin: ${origin}`)
-      );
+      console.warn(`CORS blocked origin: ${origin}`);
+      return callback(new Error(`CORS blocked origin: ${origin}`));
     },
-
     credentials: true,
-  })
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 
 app.use(express.json({ limit: "10mb" }));

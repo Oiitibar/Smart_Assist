@@ -116,8 +116,7 @@ export default function RegisterPage() {
         email,
         password,
       });
-      navigate("/Smart_Assist/login")
-      const data = await res.json();
+      navigate("/Smart_Assist/Dashboard", { replace: true });
     } catch (err) {
       setError(
         err.response?.data?.message || err.message ||

@@ -9,7 +9,7 @@ const api = axios.create({
     import.meta.env.VITE_API_URL ||
     "http://localhost:5000/api",
   withCredentials: true,
-  timeout: 60000,
+  timeout: 120000,
 });
 
 // Browser cookies remain enabled. The Bearer token is a reliable fallback

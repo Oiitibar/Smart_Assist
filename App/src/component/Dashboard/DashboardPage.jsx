@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getCurrentUser, logoutUser } from "../../service/auth";
 import { plannerApi } from "../../service/plannerApi";
 import DashboardHome from "./DashboardHome";
@@ -215,6 +216,7 @@ function settingsFromUser(user) {
 }
 
 export default function DashboardPage() {
+  const routeNavigate = useNavigate();
   const pageFromHash = window.location.hash.replace("#/", "");
   const [activePage, setActivePage] = useState(titles[pageFromHash] ? pageFromHash : "dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -232,14 +234,28 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const showError = useCallback((requestError, fallback) => {
-    const message = requestError?.response?.data?.message || requestError?.data?.message || requestError?.message || fallback;
-    setError(message);
-    setNotice("");
-    if (requestError?.response?.status === 401 || requestError?.status === 401) {
-      window.location.href = "/Smart_Assist/Login";
-    }
-  }, []);
+  const showError = useCallback(
+    (requestError, fallback) => {
+      const message =
+        requestError?.response?.data?.message ||
+        requestError?.data?.message ||
+        requestError?.message ||
+        fallback;
+
+      setError(message);
+      setNotice("");
+
+      if (
+        requestError?.response?.status === 401 ||
+        requestError?.status === 401
+      ) {
+        routeNavigate("/Smart_Assist/Login", {
+          replace: true,
+        });
+      }
+    },
+    [routeNavigate],
+  );
 
   const showNotice = useCallback((message) => {
     setNotice(message);
@@ -673,8 +689,12 @@ export default function DashboardPage() {
   const handleLogout = async () => {
   try {
     await logoutUser();
+  } catch (error) {
+    console.error("Logout request failed:", error);
   } finally {
-    window.location.href = "/Smart_Assist/Login";
+    routeNavigate("/Smart_Assist/Login", {
+      replace: true,
+    });
   }
 };
 

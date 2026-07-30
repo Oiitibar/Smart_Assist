@@ -10,10 +10,23 @@ const generateToken = (userId) => jwt.sign(
   { expiresIn: process.env.JWT_EXPIRES_IN || "7d" },
 );
 
-const cookieOptions = () => ({
+const isProduction = () =>
+  process.env.NODE_ENV === "production";
+
+const cookieBaseOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: isProduction(),
+  sameSite: isProduction() ? "none" : "lax",
+  path: "/",
+
+  // Allows authentication cookies to work when the frontend
+  // and backend are on different sites and third-party cookies
+  // are restricted by the browser.
+  ...(isProduction() ? { partitioned: true } : {}),
+});
+
+const cookieOptions = () => ({
+  ...cookieBaseOptions(),
   maxAge: 7 * 24 * 60 * 60 * 1000,
 });
 
@@ -105,11 +118,10 @@ const login = async (req, res) => {
 };
 
 const logout = async (req, res) => {
-  res.clearCookie(getCookieName(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  });
+  res.clearCookie(
+    getCookieName(),
+    cookieBaseOptions(),
+);
   res.clearCookie("study_jwt");
   return res.json({ success: true, message: "Logged out successfully" });
 };

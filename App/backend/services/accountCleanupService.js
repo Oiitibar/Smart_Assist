@@ -45,7 +45,7 @@ const removeLocalAvatar = async (avatarUrl) => {
 
 /**
  * Permanently removes a user and all records/files owned by that user.
- * The controller must validate super-admin permission and inactivity first.
+ * The controller must validate super-admin permission and protected-account rules first.
  */
 const deleteUserAccountData = async (user) => {
   const userId = user._id;

@@ -5,7 +5,7 @@ const { allowRoles } = require("../middleware/roleMiddleware");
 const {
   getAdminOverview,
   updateUserRole,
-  deleteInactiveUser,
+  deleteUserAccount,
 } = require("../controllers/adminController");
 
 const router = express.Router();
@@ -26,7 +26,7 @@ router.patch(
 router.delete(
   "/users/:userId",
   allowRoles("super_admin"),
-  asyncHandler(deleteInactiveUser),
+  asyncHandler(deleteUserAccount),
 );
 
 module.exports = router;

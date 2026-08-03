@@ -8,30 +8,30 @@ const { deleteUserAccountData } = require("../services/accountCleanupService");
 
 const safeId = (value) => String(value || "");
 
-const INACTIVE_ACCOUNT_DAYS = 30;
-const INACTIVE_ACCOUNT_MS = INACTIVE_ACCOUNT_DAYS * 24 * 60 * 60 * 1000;
-
 const getAccountActivity = (user) =>
   user.lastActiveAt || user.lastLoginAt || user.createdAt || null;
 
-const getInactivityInfo = (user, currentUserId = "") => {
+const getInactivityInfo = (user) => {
   const referenceAt = getAccountActivity(user);
   const elapsedMs = referenceAt
     ? Math.max(0, Date.now() - new Date(referenceAt).getTime())
     : 0;
-  const inactiveDays = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
-  const inactiveForMonth = Boolean(referenceAt) && elapsedMs >= INACTIVE_ACCOUNT_MS;
-  const protectedAccount =
-    user.role === "super_admin" || isSourceSuperAdmin(user.email);
 
   return {
     referenceAt,
-    inactiveDays,
-    inactiveForMonth,
-    eligibleForDeletion:
-      inactiveForMonth &&
-      !protectedAccount &&
-      safeId(user._id) !== safeId(currentUserId),
+    inactiveDays: Math.floor(elapsedMs / (24 * 60 * 60 * 1000)),
+  };
+};
+
+const getDeletionInfo = (user, currentUserId = "") => {
+  const protectedAccount =
+    user.role === "super_admin" || isSourceSuperAdmin(user.email);
+  const isCurrentUser = safeId(user._id) === safeId(currentUserId);
+
+  return {
+    allowed: !protectedAccount && !isCurrentUser,
+    protectedAccount,
+    isCurrentUser,
   };
 };
 
@@ -120,7 +120,8 @@ const getAdminOverview = async (req, res) => {
     const quiz = quizMap.get(id) || { sets: 0, questions: 0, attempts: 0, score: 0, total: 0 };
     const tasks = taskMap.get(id) || { total: 0, completed: 0 };
 
-    const inactivity = getInactivityInfo(user, req.user._id);
+    const inactivity = getInactivityInfo(user);
+    const deletion = getDeletionInfo(user, req.user._id);
 
     return {
       id,
@@ -134,6 +135,7 @@ const getAdminOverview = async (req, res) => {
       lastLoginAt: user.lastLoginAt || null,
       lastActiveAt: user.lastActiveAt || null,
       inactivity,
+      deletion,
       study: {
         minutes: Number(user.studyData?.studyMinutes || 0),
         materials: material.count,
@@ -164,8 +166,8 @@ const getAdminOverview = async (req, res) => {
     totalMaterials: materials.reduce((sum, item) => sum + item.count, 0),
     totalFlashcards: [...flashcardMap.values()].reduce((sum, item) => sum + item.cards, 0),
     totalQuizAttempts: [...quizMap.values()].reduce((sum, item) => sum + item.attempts, 0),
-    inactiveAccounts: allUsers.filter(
-      (user) => getInactivityInfo(user, req.user._id).eligibleForDeletion,
+    deletableAccounts: allUsers.filter(
+      (user) => getDeletionInfo(user, req.user._id).allowed,
     ).length,
   };
 
@@ -176,8 +178,7 @@ const getAdminOverview = async (req, res) => {
       users: userRows,
       permissions: {
         canManageAdmins: req.user.role === "super_admin",
-        canDeleteInactiveAccounts: req.user.role === "super_admin",
-        inactivityThresholdDays: INACTIVE_ACCOUNT_DAYS,
+        canDeleteAccounts: req.user.role === "super_admin",
       },
     },
   });
@@ -221,7 +222,7 @@ const updateUserRole = async (req, res) => {
   });
 };
 
-const deleteInactiveUser = async (req, res) => {
+const deleteUserAccount = async (req, res) => {
   const target = await User.findById(req.params.userId);
   if (!target) return res.status(404).json({ message: "User account not found" });
 
@@ -235,23 +236,11 @@ const deleteInactiveUser = async (req, res) => {
     });
   }
 
-  const inactivity = getInactivityInfo(target, req.user._id);
-  if (!inactivity.inactiveForMonth) {
-    return res.status(409).json({
-      message: `This account must be inactive for at least ${INACTIVE_ACCOUNT_DAYS} days before deletion`,
-      data: {
-        inactiveDays: inactivity.inactiveDays,
-        requiredDays: INACTIVE_ACCOUNT_DAYS,
-        activityReferenceAt: inactivity.referenceAt,
-      },
-    });
-  }
-
   const removed = await deleteUserAccountData(target);
 
   return res.json({
     success: true,
-    message: "Inactive account and related study data deleted",
+    message: "Account and related study data deleted",
     data: {
       deletedUser: {
         id: safeId(target._id),
@@ -263,4 +252,4 @@ const deleteInactiveUser = async (req, res) => {
   });
 };
 
-module.exports = { getAdminOverview, updateUserRole, deleteInactiveUser };
+module.exports = { getAdminOverview, updateUserRole, deleteUserAccount };

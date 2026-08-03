@@ -274,16 +274,21 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
                               <Trash2 size={13} />
                             </button>
                           </div>
-                          <div className="mt-1 flex min-w-0 items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
+                          <div className="mt-1 flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
                             <Clock3 className="shrink-0" size={10} />
-                            <span className="shrink-0">{item.start} – {item.end}</span>
-                            <span aria-hidden="true">·</span>
-                            <UserRound className="shrink-0" size={10} />
-                            <span className="truncate">{item.teacher || "Instructor TBA"}</span>
+                            <span>{item.start} – {item.end}</span>
                           </div>
-                          {height > 70 && (
-                            <small className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-slate-500 dark:text-slate-400">
-                              <MapPin className="shrink-0" size={12} />
+
+                          <div className="mt-1 flex min-w-0 items-start gap-1 text-[9px] leading-tight text-slate-600 dark:text-slate-300">
+                            <UserRound className="mt-px shrink-0" size={10} />
+                            <span className="min-w-0 whitespace-normal break-words">
+                              {item.teacher || "Instructor TBA"}
+                            </span>
+                          </div>
+
+                          {height > 82 && (
+                            <small className="mt-1 flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
+                              <MapPin className="shrink-0" size={10} />
                               <span className="truncate">{item.room || "Room TBA"}</span>
                             </small>
                           )}

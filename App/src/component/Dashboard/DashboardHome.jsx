@@ -9,6 +9,7 @@ import {
   MapPin,
   Plus,
   Target,
+  UserRound,
 } from "lucide-react";
 import { PageHeader } from "./DashboardShared";
 import {
@@ -190,8 +191,12 @@ export default function DashboardHome({
                       <h3 className="truncate text-sm font-bold text-slate-950 dark:text-white">{item.title}</h3>
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="inline-flex items-center gap-1"><Clock3 size={13} /> {item.start} – {item.end}</span>
-                        <span className="inline-flex items-center gap-1"><MapPin size={13} /> {item.room}</span>
+                        <span className="inline-flex items-center gap-1"><MapPin size={13} /> {item.room || "Room TBA"}</span>
                       </div>
+                      <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                        <UserRound className="mt-0.5 shrink-0" size={13} />
+                        <span className="min-w-0 break-words">{item.teacher || "Instructor TBA"}</span>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -216,8 +221,15 @@ export default function DashboardHome({
               <p className="text-xs font-semibold text-indigo-500 dark:text-indigo-300">Next class</p>
               <div className="mt-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-xl font-extrabold text-slate-950 dark:text-white">{nextClass.title}</h3>
-                  <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{nextClass.room}</p>
+                  <h3 className="text-xl font-extrabold leading-tight text-slate-950 dark:text-white">{nextClass.title}</h3>
+                  <p className="mt-2 flex items-start gap-1 text-xs leading-snug text-slate-600 dark:text-slate-300">
+                    <UserRound className="mt-0.5 shrink-0" size={13} />
+                    <span className="min-w-0 break-words">{nextClass.teacher || "Instructor TBA"}</span>
+                  </p>
+                  <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                    <MapPin className="shrink-0" size={13} />
+                    <span className="min-w-0 break-words">{nextClass.room || "Room TBA"}</span>
+                  </p>
                   <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <Clock3 size={13} /> {nextClass.start} – {nextClass.end}
                   </p>

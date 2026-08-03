@@ -274,8 +274,19 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
                               <Trash2 size={13} />
                             </button>
                           </div>
-                          <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">{item.start} – {item.end}</span>
-                          {height > 70 && <small className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><MapPin size={12} /> {item.room}</small>}
+                          <div className="mt-1 flex min-w-0 items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
+                            <Clock3 className="shrink-0" size={10} />
+                            <span className="shrink-0">{item.start} – {item.end}</span>
+                            <span aria-hidden="true">·</span>
+                            <UserRound className="shrink-0" size={10} />
+                            <span className="truncate">{item.teacher || "Instructor TBA"}</span>
+                          </div>
+                          {height > 70 && (
+                            <small className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-slate-500 dark:text-slate-400">
+                              <MapPin className="shrink-0" size={12} />
+                              <span className="truncate">{item.room || "Room TBA"}</span>
+                            </small>
+                          )}
                         </div>
                       );
                     })}
@@ -304,7 +315,16 @@ export default function TimetablePage({ schedules, onAddSchedule, onDeleteSchedu
                     <i className="h-10 w-1 rounded-full" style={{ backgroundColor: item.color }} />
                     <div className="min-w-0 flex-1">
                       <strong className="block truncate text-sm text-slate-900 dark:text-white">{item.title}</strong>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{item.start} – {item.end} · {item.room}</p>
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <Clock3 size={12} /> {item.start} – {item.end}
+                      </p>
+                      <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <UserRound className="shrink-0" size={12} />
+                        <span className="truncate">{item.teacher || "Instructor TBA"}</span>
+                        <span aria-hidden="true">·</span>
+                        <MapPin className="shrink-0" size={12} />
+                        <span className="truncate">{item.room || "Room TBA"}</span>
+                      </p>
                     </div>
                     <button className={iconButtonClass} onClick={() => onDeleteSchedule?.(item.id)}><Trash2 size={15} /></button>
                   </article>

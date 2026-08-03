@@ -3,7 +3,6 @@ import {
   Activity,
   BookOpen,
   CheckCircle2,
-  Clock3,
   FileText,
   GraduationCap,
   Search,
@@ -117,26 +116,27 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
     }
   };
 
-  const deleteInactiveAccount = async (user) => {
-    if (!user?.inactivity?.eligibleForDeletion) return;
+  const deleteUserAccount = async (user) => {
+    if (!payload.permissions?.canDeleteAccounts || !user?.deletion?.allowed) return;
 
-    const days = user.inactivity.inactiveDays || 30;
     const confirmed = window.confirm(
-      `Permanently delete ${user.name} (${user.email})?\n\n` +
-        `This account has been inactive for ${days} days. Its materials, previews, ` +
-        "flashcards, quizzes, timetable, tasks, progress, and uploaded avatar will also be deleted. " +
+      `Permanently delete ${user.name} (${user.email})?
+
+` +
+        "The user profile, materials, Cloudflare R2 files, previews, flashcards, quizzes, " +
+        "timetable entries, tasks, progress records, and uploaded avatar will also be deleted. " +
         "This action cannot be undone.",
     );
     if (!confirmed) return;
 
     setDeletingId(user.id);
     try {
-      await plannerApi.deleteInactiveUser(user.id);
-      onNotice?.("Inactive account and its study data were deleted");
+      await plannerApi.deleteUserAccount(user.id);
+      onNotice?.("Account and its related study data were deleted");
       setSelectedId("");
       await load();
     } catch (error) {
-      onError?.(error, "Could not delete inactive account");
+      onError?.(error, "Could not delete account");
     } finally {
       setDeletingId("");
     }
@@ -147,7 +147,7 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
     { value: payload.summary?.activeToday || 0, label: "Active today", detail: "Accounts used since midnight", icon: Activity },
     { value: payload.summary?.normalAdmins || 0, label: "Normal admins", detail: "Assigned by a super admin", icon: ShieldCheck },
     { value: payload.summary?.totalMaterials || 0, label: "Study materials", detail: "Across every account", icon: FileText },
-    { value: payload.summary?.inactiveAccounts || 0, label: "Inactive 30+ days", detail: "Eligible for super-admin cleanup", icon: Clock3 },
+    { value: payload.summary?.deletableAccounts || 0, label: "Deletable accounts", detail: "Students and normal admins", icon: Trash2 },
   ];
 
   return (
@@ -277,11 +277,11 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
                               {updatingId === user.id ? "Saving..." : user.role === "admin" ? "Remove admin" : "Make admin"}
                             </button>
                           )}
-                          {payload.permissions?.canDeleteInactiveAccounts && user.inactivity?.eligibleForDeletion && (
+                          {payload.permissions?.canDeleteAccounts && user.deletion?.allowed && (
                             <button
                               type="button"
                               disabled={deletingId === user.id || updatingId === user.id}
-                              onClick={(event) => { event.stopPropagation(); deleteInactiveAccount(user); }}
+                              onClick={(event) => { event.stopPropagation(); deleteUserAccount(user); }}
                               className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-rose-600 hover:text-rose-800 disabled:opacity-50 dark:text-rose-300"
                             >
                               <Trash2 size={13} />
@@ -338,22 +338,22 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
                     <p className="mt-1 text-xs font-medium">{formatDate(selectedUser.inactivity?.referenceAt, "No activity recorded")}</p>
                     <p className="mt-3 text-[11px] text-slate-400">Member since</p>
                     <p className="mt-1 text-xs font-medium">{formatDate(selectedUser.createdAt)}</p>
-                    <div className={`mt-4 rounded-lg px-3 py-2 text-[11px] font-semibold ${selectedUser.inactivity?.inactiveForMonth ? "bg-rose-500/15 text-rose-200" : "bg-emerald-500/15 text-emerald-200"}`}>
-                      {selectedUser.inactivity?.inactiveForMonth
-                        ? `Inactive for ${selectedUser.inactivity.inactiveDays} days`
-                        : `Active within the last ${payload.permissions?.inactivityThresholdDays || 30} days`}
+                    <div className="mt-4 rounded-lg bg-indigo-500/15 px-3 py-2 text-[11px] font-semibold text-indigo-200">
+                      {selectedUser.inactivity?.inactiveDays > 0
+                        ? `Last recorded activity ${selectedUser.inactivity.inactiveDays} day${selectedUser.inactivity.inactiveDays === 1 ? "" : "s"} ago`
+                        : "Active today"}
                     </div>
                   </div>
 
-                  {payload.permissions?.canDeleteInactiveAccounts && selectedUser.inactivity?.eligibleForDeletion && (
+                  {payload.permissions?.canDeleteAccounts && selectedUser.deletion?.allowed && (
                     <button
                       type="button"
                       disabled={deletingId === selectedUser.id}
-                      onClick={() => deleteInactiveAccount(selectedUser)}
+                      onClick={() => deleteUserAccount(selectedUser)}
                       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-xs font-bold text-white transition hover:bg-rose-600 disabled:opacity-50"
                     >
                       <Trash2 size={15} />
-                      {deletingId === selectedUser.id ? "Deleting account..." : "Delete inactive account"}
+                      {deletingId === selectedUser.id ? "Deleting account..." : "Delete account"}
                     </button>
                   )}
                 </div>
@@ -367,7 +367,7 @@ export default function AdminPanel({ currentUser, onNotice, onError }) {
         {/* <div className="mt-6 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-300">
           <CheckCircle2 className="mt-0.5 shrink-0" size={15} />
           <p>
-            Super admins are controlled only by <code className="font-bold">backend/config/superAdmins.js</code>. Normal admins can view this panel, but only a super admin can manage roles or permanently delete an account that has been inactive for at least 30 full days.
+            Super admins are controlled only by <code className="font-bold">backend/config/superAdmins.js</code>. Normal admins can view this panel, but only a super admin can manage roles or permanently delete a student or normal-admin account.
           </p>
         </div> */}
       </div>

@@ -52,7 +52,7 @@ export default function Topbar({ pageTitle, onMenu, onSearch, user, darkMode, on
         {avatarSrc ? (
           <img
             src={avatarSrc}
-            alt={`${user?.name || user?.fullName || "Student"} avatar`}
+            alt={`${user?.name || user?.fullName || ""} avatar`}
             className="h-9 w-9 rounded-xl object-cover shadow-sm"
           />
         ) : (

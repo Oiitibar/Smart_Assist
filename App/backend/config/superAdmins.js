@@ -2,7 +2,7 @@
 // Replace the example email with the account email(s) that should own the
 // highest platform role. Normal admins cannot add or remove super admins.
 const SUPER_ADMIN_EMAILS = Object.freeze([
-  "yee@gmail.com",
+  "oiitibar1@gmail.com",
 ]);
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
